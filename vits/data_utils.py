@@ -49,9 +49,30 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
                 continue
             if (usel >= items_max):
                 usel = items_max
-            items_new.append([wavpath, spec, pitch, vec,
-                             # , ppg
-                               spk, usel])
+            
+            wavpath = self.read_wav(wavpath)
+
+            if self.mode == "torch":
+                spec = torch.load(spec)
+            elif self.mode == "jax":
+                spec = np.load(spec)
+            else:
+                raise ValueError("Unknown mode")
+
+            pitch = np.load(pitch)
+            vec = np.load(vec)
+            vec = np.repeat(vec, 2, 0)  # 320 PPG -> 160 * 2
+            #ppg = np.load(ppg)
+            #ppg = np.repeat(ppg, 2, 0)  # 320 PPG -> 160 * 2
+            spk = np.load(spk)
+
+            spec = torch.FloatTensor(spec)
+            pitch = torch.FloatTensor(pitch)
+            vec = torch.FloatTensor(vec)
+            #ppg = torch.FloatTensor(ppg)
+            spk = torch.FloatTensor(spk)
+
+            items_new.append([wavpath, spec, pitch, vec , spk, usel])
             lengths.append(usel)
         self.items = items_new
         self.lengths = lengths
@@ -80,26 +101,6 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         spk = item[4]
         use = item[5]
 
-        wav = self.read_wav(wav)
-        if self.mode == "torch":
-            spe = torch.load(spe)
-        elif self.mode == "jax":
-            spe = np.load(spe)
-        else:
-            raise ValueError("Unknown mode")
-
-        pit = np.load(pit)
-        vec = np.load(vec)
-        vec = np.repeat(vec, 2, 0)  # 320 PPG -> 160 * 2
-        #ppg = np.load(ppg)
-        #ppg = np.repeat(ppg, 2, 0)  # 320 PPG -> 160 * 2
-        spk = np.load(spk)
-
-        spe = torch.FloatTensor(spe)
-        pit = torch.FloatTensor(pit)
-        vec = torch.FloatTensor(vec)
-        #ppg = torch.FloatTensor(ppg)
-        spk = torch.FloatTensor(spk)
 
         len_pit = pit.size()[0]
         len_vec = vec.size()[0] - 2 # for safe
