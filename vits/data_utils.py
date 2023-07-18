@@ -30,7 +30,7 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         items_new = []
         items_min = int(self.segment_size / self.hop_length * 4)  # 1 S
         items_max = int(self.segment_size / self.hop_length * 16)  # 4 S
-        for wavpath, spec, pitch, vec, ppg, spk in self.items:
+        for wavpath, spec, pitch, vec, spk in self.items:
             if not os.path.isfile(wavpath):
                 continue
             if not os.path.isfile(spec):
@@ -39,8 +39,8 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
                 continue
             if not os.path.isfile(vec):
                 continue
-            if not os.path.isfile(ppg):
-                continue
+            # if not os.path.isfile(ppg):
+            #     continue
             if not os.path.isfile(spk):
                 continue
             temp = np.load(pitch)
@@ -49,7 +49,9 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
                 continue
             if (usel >= items_max):
                 usel = items_max
-            items_new.append([wavpath, spec, pitch, vec, ppg, spk, usel])
+            items_new.append([wavpath, spec, pitch, vec,
+                             # , ppg
+                               spk, usel])
             lengths.append(usel)
         self.items = items_new
         self.lengths = lengths
@@ -74,9 +76,9 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         spe = item[1]
         pit = item[2]
         vec = item[3]
-        ppg = item[4]
-        spk = item[5]
-        use = item[6]
+        #ppg = item[4]
+        spk = item[4]
+        use = item[5]
 
         wav = self.read_wav(wav)
         if self.mode == "torch":
@@ -89,36 +91,36 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         pit = np.load(pit)
         vec = np.load(vec)
         vec = np.repeat(vec, 2, 0)  # 320 PPG -> 160 * 2
-        ppg = np.load(ppg)
-        ppg = np.repeat(ppg, 2, 0)  # 320 PPG -> 160 * 2
+        #ppg = np.load(ppg)
+        #ppg = np.repeat(ppg, 2, 0)  # 320 PPG -> 160 * 2
         spk = np.load(spk)
 
         spe = torch.FloatTensor(spe)
         pit = torch.FloatTensor(pit)
         vec = torch.FloatTensor(vec)
-        ppg = torch.FloatTensor(ppg)
+        #ppg = torch.FloatTensor(ppg)
         spk = torch.FloatTensor(spk)
 
         len_pit = pit.size()[0]
         len_vec = vec.size()[0] - 2 # for safe
-        len_ppg = ppg.size()[0] - 2 # for safe
+        #len_ppg = ppg.size()[0] - 2 # for safe
         len_min = min(len_pit, len_vec)
-        len_min = min(len_min, len_ppg)
+        #len_min = min(len_min, len_ppg)
         len_wav = len_min * self.hop_length
 
         pit = pit[:len_min]
         vec = vec[:len_min, :]
-        ppg = ppg[:len_min, :]
+        #ppg = ppg[:len_min, :]
         spe = spe[:, :len_min]
         wav = wav[:, :len_wav]
         if len_min > use:
-            max_frame_start = ppg.size(0) - use - 1
+            max_frame_start = vec.size(0) - use - 1
             frame_start = random.randint(0, max_frame_start)
             frame_end = frame_start + use
 
             pit = pit[frame_start:frame_end]
             vec = vec[frame_start:frame_end, :]
-            ppg = ppg[frame_start:frame_end, :]
+            #ppg = ppg[frame_start:frame_end, :]
             spe = spe[:, frame_start:frame_end]
 
             wav_start = frame_start * self.hop_length
@@ -129,7 +131,7 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         # print(ppg.shape)
         # print(pit.shape)
         # print(spk.shape)
-        return spe, wav, ppg, vec, pit, spk
+        return spe, wav, vec, pit, spk
 
 
 class TextAudioSpeakerCollate:
@@ -156,17 +158,17 @@ class TextAudioSpeakerCollate:
         spe_padded.zero_()
         wav_padded.zero_()
 
-        max_ppg_len = max([x[2].size(0) for x in batch])
-        ppg_lengths = torch.FloatTensor(len(batch))
-        ppg_padded = torch.FloatTensor(
-            len(batch), max_ppg_len, batch[0][2].size(1))
+        max_vec_len = max([x[2].size(0) for x in batch])
+        vec_lengths = torch.FloatTensor(len(batch))
+        # ppg_padded = torch.FloatTensor(
+        #     len(batch), max_ppg_len, batch[0][2].size(1))
         vec_padded = torch.FloatTensor(
-            len(batch), max_ppg_len, batch[0][3].size(1))
-        pit_padded = torch.FloatTensor(len(batch), max_ppg_len)
-        ppg_padded.zero_()
+            len(batch), max_vec_len, batch[0][2].size(1))
+        pit_padded = torch.FloatTensor(len(batch), max_vec_len)
+        #ppg_padded.zero_()
         vec_padded.zero_()
         pit_padded.zero_()
-        spk = torch.FloatTensor(len(batch), batch[0][5].size(0))
+        spk = torch.FloatTensor(len(batch), batch[0][4].size(0))
 
         for i in range(len(ids_sorted_decreasing)):
             row = batch[ids_sorted_decreasing[i]]
@@ -179,17 +181,18 @@ class TextAudioSpeakerCollate:
             wav_padded[i, :, : wav.size(1)] = wav
             wav_lengths[i] = wav.size(1)
 
-            ppg = row[2]
-            ppg_padded[i, : ppg.size(0), :] = ppg
-            ppg_lengths[i] = ppg.size(0)
+            # ppg = row[2]
+            # ppg_padded[i, : ppg.size(0), :] = ppg
+            
 
-            vec = row[3]
+            vec = row[2]
             vec_padded[i, : vec.size(0), :] = vec
+            vec_lengths[i] = vec.size(0)
 
-            pit = row[4]
+            pit = row[3]
             pit_padded[i, : pit.size(0)] = pit
 
-            spk[i] = row[5]
+            spk[i] = row[4]
         # print(ppg_padded.shape)
         # print(ppg_lengths.shape)
         # print(pit_padded.shape)
@@ -198,8 +201,8 @@ class TextAudioSpeakerCollate:
         # print(spe_lengths.shape)
         # print(wav_padded.shape)
         # print(wav_lengths.shape)
-        ppg_padded = np.asarray(ppg_padded,dtype=np.float32)
-        ppg_lengths = np.asarray(ppg_lengths,dtype=np.float32)
+        # ppg_padded = np.asarray(ppg_padded,dtype=np.float32)
+        vec_lengths = np.asarray(vec_lengths,dtype=np.float32)
         vec_padded = np.asarray(vec_padded,dtype=np.float32)
         pit_padded = np.asarray(pit_padded,dtype=np.float32)
         spk = np.asarray(spk,dtype=np.float32)
@@ -208,8 +211,8 @@ class TextAudioSpeakerCollate:
         wav_padded = np.asarray(wav_padded,dtype=np.float32)
         wav_lengths = np.asarray(wav_lengths,dtype=np.int32)
         return (
-            ppg_padded,
-            ppg_lengths,
+            # ppg_padded,
+            vec_lengths,
             vec_padded,
             pit_padded,
             spk,

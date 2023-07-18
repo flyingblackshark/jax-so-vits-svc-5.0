@@ -29,7 +29,7 @@ class TextEncoder(nn.Module):
     p_dropout:float
     def setup(self):
         self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[5],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
-        self.hub = nn.Conv(features=self.hidden_channels, kernel_size=[5],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
+        #self.hub = nn.Conv(features=self.hidden_channels, kernel_size=[5],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
         self.pit = nn.Embed(256, self.hidden_channels,dtype=jnp.float32,embedding_init=nn.initializers.normal(1.0))
         self.enc = attentions.Encoder(
             hidden_channels=self.hidden_channels,
@@ -39,17 +39,17 @@ class TextEncoder(nn.Module):
             kernel_size=self.kernel_size,
             p_dropout=self.p_dropout)
         self.proj = nn.Conv(features=self.out_channels * 2, kernel_size=[1],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
-    def __call__(self, x, x_lengths,v, f0,train=True):
+    def __call__(self, x, x_lengths, f0,train=True):
         rng = self.make_rng('rnorms')
         normal_key,rng = jax.random.split(rng,2)
         x = x.transpose(0,2,1)  # [b, h, t]
         x_mask = jnp.expand_dims(commons.sequence_mask(x_lengths, x.shape[2]), 1)
         x = self.pre(x.transpose(0,2,1)).transpose(0,2,1)
-        v = v.transpose(0,2,1)  # [b, h, t]
-        v = self.hub(v.transpose(0,2,1)).transpose(0,2,1) 
+        # v = v.transpose(0,2,1)  # [b, h, t]
+        # v = self.hub(v.transpose(0,2,1)).transpose(0,2,1) 
         x = jnp.where(x_mask,x,0)
-        v = jnp.where(x_mask,v,0)
-        x = x + v + self.pit(f0).transpose(0,2,1)
+        #v = jnp.where(x_mask,v,0)
+        x = x  + self.pit(f0).transpose(0,2,1)
         x = self.enc(jnp.where(x_mask,x,0), x_mask,train=train)
         stats = self.proj(x.transpose(0,2,1)).transpose(0,2,1)
         stats = jnp.where(x_mask,stats,0)
@@ -190,15 +190,15 @@ class SynthesizerTrn(nn.Module):
         )
         self.dec = Generator(hp=self.hp)
 
-    def __call__(self, ppg, pit, vec,spec, spk, ppg_l, spec_l,train=True):
+    def __call__(self, pit, vec,spec, spk, vec_l, spec_l,train=True):
         rng = self.make_rng('rnorms')
         ppg_key,vec_key,slice_key , rng = jax.random.split(rng,4)
-        ppg = ppg + jax.random.normal(ppg_key,ppg.shape) * 1  # Perturbation
+        #ppg = ppg + jax.random.normal(ppg_key,ppg.shape) * 1  # Perturbation
         vec = vec + jax.random.normal(vec_key,vec.shape) * 2  # Perturbation
         g = jnp.expand_dims(self.emb_g(l2norm(spk,axis=1)),-1)
         
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
-            ppg, ppg_l,vec, f0=f0_to_coarse(pit),train=train)
+            vec, vec_l, f0=f0_to_coarse(pit),train=train)
         z_q, m_q, logs_q, spec_mask = self.enc_q(spec, spec_l, g=g,train=train)
         z_slice, pit_slice, ids_slice = commons.rand_slice_segments_with_pitch(
             z_q, pit, spec_l, self.segment_size,rng=slice_key)
@@ -215,12 +215,12 @@ class SynthesizerTrn(nn.Module):
         spk_preds = self.speaker_classifier(gradient_reversal(x))
         return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r),spk_preds
 
-    def infer(self, ppg, pit,vec, spk, ppg_l):
+    def infer(self,  pit,vec, spk, vec_l):
         rng = self.make_rng('rnorms')
-        infer_key , rng = jax.random.split(rng)
-        ppg = ppg + jax.random.normal(infer_key,ppg.shape) * 0.0001  # Perturbation
+        #infer_key , rng = jax.random.split(rng)
+        #ppg = ppg + jax.random.normal(infer_key,ppg.shape) * 0.0001  # Perturbation
         z_p, m_p, logs_p, ppg_mask, x = self.enc_p(
-            ppg, ppg_l,vec, f0=f0_to_coarse(pit),train=False)
+             vec,vec_l, f0=f0_to_coarse(pit),train=False)
         z, _ = self.flow(z_p, ppg_mask, g=spk, reverse=True,train=False)
         o = self.dec(spk, z * ppg_mask, f0=pit,train=False)
         return o
