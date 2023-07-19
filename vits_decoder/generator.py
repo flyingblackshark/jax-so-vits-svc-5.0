@@ -107,7 +107,7 @@ class Generator(nn.Module):
         har_source = self.m_source(f0,rng)
         har_source = har_source.transpose(0,2,1)
         x = self.conv_pre(x.transpose(0,2,1)).transpose(0,2,1)
-
+        x = x * nn.tanh(nn.softplus(x))
         for i in range(self.num_upsamples):
             #x = nn.leaky_relu(x, 0.1)
             # upsampling
