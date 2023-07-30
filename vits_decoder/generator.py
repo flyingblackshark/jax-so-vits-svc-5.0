@@ -8,7 +8,7 @@ from .nsf import SourceModuleHnNSF
 from .bigv import AMPBlock
 from jax.nn.initializers import normal as normal_init
 from jax.nn.initializers import constant as constant_init
-from vits import commons
+from vits.weightnorm import WeightNormConvTranspose
 class SpeakerAdapter(nn.Module):
     speaker_dim : int
     adapter_dim : int
@@ -55,11 +55,10 @@ class Generator(nn.Module):
             # print(f'ups: {i} {k}, {u}, {(k - u) // 2}')
             # base
             ups.append(
-                    nn.ConvTranspose(
+                    WeightNormConvTranspose(
                         self.hp.gen.upsample_initial_channel // (2 ** (i + 1)),
                         (k,),
-                        (u,),
-                        kernel_init=normal_init(0.01),bias_init=nn.initializers.normal())
+                        (u,))
                 )
             # nsf
             if i + 1 < len(self.hp.gen.upsample_rates):

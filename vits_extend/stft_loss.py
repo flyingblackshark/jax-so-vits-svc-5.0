@@ -26,7 +26,7 @@ def stft(x, fft_size, hop_size, win_length):
     Returns:
         Tensor: Magnitude spectrogram (B, #frames, fft_size // 2 + 1).
     """
-    x_stft = jax.scipy.signal.stft(x,nfft=fft_size, noverlap=win_length-hop_size, nperseg=win_length,padded=False,boundary="even")
+    x_stft = jax.scipy.signal.stft(x,nfft=fft_size, noverlap=win_length-hop_size, nperseg=win_length,padded=False,boundary=None)
 
     # NOTE(kan-bayashi): clamp is needed to avoid nan or inf
     hann_win = scipy.signal.get_window('hann',fft_size)

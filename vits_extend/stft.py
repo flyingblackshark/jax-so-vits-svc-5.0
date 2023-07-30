@@ -51,7 +51,7 @@ class TacotronSTFT(nn.Module):
             sr=sampling_rate, n_fft=filter_length, n_mels=n_mel_channels, fmin=mel_fmin, fmax=mel_fmax)
         self.mel_basis = mel
     def linear_spectrogram(self, y):
-        spec = jax.scipy.signal.stft(y,nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=False,boundary="even")    
+        spec = jax.scipy.signal.stft(y,nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=False,boundary=None)    
         hann_win = scipy.signal.get_window('hann',self.n_fft)
         scale = np.sqrt(1.0/hann_win.sum()**2)
         return jnp.abs(spec[2]/scale)
@@ -68,7 +68,7 @@ class TacotronSTFT(nn.Module):
         """
         hann_win = scipy.signal.get_window('hann',self.n_fft)
         scale = np.sqrt(1.0/hann_win.sum()**2)
-        spec = jax.scipy.signal.stft(y, nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=False,boundary="even")
+        spec = jax.scipy.signal.stft(y, nfft=self.n_fft, noverlap=self.win_size-self.hop_size, nperseg=self.win_size,return_onesided=True,padded=False,boundary=None)
         spec = spec[2]/scale
         real = jnp.real(spec)
         imag = jnp.imag(spec)

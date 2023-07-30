@@ -8,3 +8,6 @@ data_svc.zip
 whisper_pretrain/
 hubert_pretrain/
 speaker_pretrain/
+vits_decoder/bigv.py
+rmvpe.pt
+hubert_base.pt

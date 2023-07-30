@@ -38,13 +38,13 @@ def pred_vec(model, wavPath, vecPath, device):
     inputs = {
         "source": feats.to(device),
         "padding_mask": padding_mask.to(device),
-        "output_layer": 9 ,  # layer 9
+        "output_layer": 12 ,  # layer 9
     }
     #feats = feats[None, None, :].half()
     with torch.no_grad():
         logits = model.extract_features(**inputs)
         feats = (
-            model.final_proj(logits[0])
+           logits[0]
         )
         #vec = model.units(feats).squeeze().data.cpu().float().numpy()
         # print(vec.shape)   # [length, dim=256] hop=320

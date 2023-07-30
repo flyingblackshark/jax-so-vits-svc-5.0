@@ -11,7 +11,7 @@ from functools import partial
 
 @partial(jax.jit, static_argnums=(1,2,3),backend='cpu')
 def spectrogram_jax(y, n_fft:jnp.int32, hop_size:jnp.int32, win_size:jnp.int32):
-    spec = jax.scipy.signal.stft(y, nfft=n_fft, noverlap=win_size-hop_size, nperseg=win_size,return_onesided=True,padded=True,boundary="even")
+    spec = jax.scipy.signal.stft(y, nfft=n_fft, noverlap=win_size-hop_size, nperseg=win_size,return_onesided=True,padded=True,boundary=None)
     spec = jnp.abs(spec[2])+(1e-9)
     return spec
 
