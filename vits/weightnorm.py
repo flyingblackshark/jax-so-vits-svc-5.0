@@ -27,7 +27,7 @@ class WeightNormConv(nn.Module):
           The convolved data.
         """
         x = x.astype(self.dtype)
-        
+
         conv = nn.Conv(
             features=self.features, 
             kernel_size=self.kernel_size, 
@@ -36,21 +36,24 @@ class WeightNormConv(nn.Module):
             kernel_dilation = self.kernel_dilation,
             dtype=self.dtype, 
             param_dtype = self.param_dtype,
-            kernel_init=jax.nn.initializers.normal(0.01),bias_init=jax.nn.initializers.normal(0.01))
+            kernel_init=jax.nn.initializers.normal(0.01),
+            bias_init=jax.nn.initializers.normal(0.01))
         
-        kernel_init = lambda  rng, x: conv.init(rng,x)['params']['kernel']
-        bias_init = lambda  rng, x: conv.init(rng,x)['params']['bias']
+        #kernel_init = lambda  rng, x: conv.init(rng,x)['params']['kernel']
+        weight_shape = (
+            conv.features,
+            x.shape[-1],
+            conv.kernel_size[0],
+        )
+        weight_v = self.param("weight_v", jax.nn.initializers.he_normal(), weight_shape)    
+        weight_g = self.param("weight_g", lambda _: jnp.linalg.norm(weight_v, axis=(0, 1))[None, None, :])
+        bias = self.param("bias", jax.nn.initializers.zeros, (conv.features,))
         
-        # standardize kernel
-        weight_v = self.param("weight_v", kernel_init, x)
-        weight_g = self.param("weight_g", lambda _: jnp.linalg.norm(weight_v, axis=(0,1)))
-        weight_v_norm = jnp.linalg.norm(weight_v, axis=(0,1))
+        weight_v_norm = jnp.linalg.norm(weight_v, axis=(0, 1))[None, None, :]
         normed_weight_v = jnp.divide(weight_v, weight_v_norm)
         normed_kernel = jnp.multiply(normed_weight_v, weight_g)
 
-        bias = self.param('bias',bias_init, x)
-
-        return(conv.apply({'params': {'kernel': normed_kernel, 'bias': bias}},x))
+        return(conv.apply({'params': {'kernel': normed_kernel.T, 'bias': bias}},x))
 
 class WeightNormConvTranspose(nn.Module):
     """
@@ -86,16 +89,17 @@ class WeightNormConvTranspose(nn.Module):
             param_dtype = self.param_dtype,
              kernel_init=jax.nn.initializers.normal(0.01),bias_init=jax.nn.initializers.normal(0.01))
         
-        kernel_init = lambda  rng, x: conv.init(rng,x)['params']['kernel']
-        bias_init = lambda  rng, x: conv.init(rng,x)['params']['bias']
+        weight_shape = (
+            conv.features,
+            x.shape[-1],
+            conv.kernel_size[0],
+        )
+        weight_v = self.param("weight_v", jax.nn.initializers.he_normal(), weight_shape)
+        weight_g = self.param("weight_g", lambda _: jnp.linalg.norm(weight_v, axis=(0, 1))[None, None, :])
+        bias = self.param("bias", jax.nn.initializers.zeros, (conv.features,))
         
-        # standardize kernel
-        weight_v = self.param("weight_v", kernel_init, x)
-        weight_g = self.param("weight_g", lambda _: jnp.linalg.norm(weight_v, axis=(0,1)))
-        weight_v_norm = jnp.linalg.norm(weight_v, axis=(0,1))
+        weight_v_norm = jnp.linalg.norm(weight_v, axis=(0, 1))[None, None, :]
         normed_weight_v = jnp.divide(weight_v, weight_v_norm)
         normed_kernel = jnp.multiply(normed_weight_v, weight_g)
 
-        bias = self.param('bias',bias_init, x)
-
-        return(conv.apply({'params': {'kernel': normed_kernel, 'bias': bias}},x))
+        return(conv.apply({'params': {'kernel': normed_kernel.T, 'bias': bias}},x))
