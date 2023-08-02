@@ -108,7 +108,6 @@ class Generator(nn.Module):
         x = self.conv_pre(x.transpose(0,2,1)).transpose(0,2,1)
         x = x * nn.tanh(nn.softplus(x))
         for i in range(self.num_upsamples):
-            #x = nn.leaky_relu(x, 0.1)
             # upsampling
             x = self.ups[i](x.transpose(0,2,1)).transpose(0,2,1)
             # nsf
@@ -124,7 +123,6 @@ class Generator(nn.Module):
             x = xs / self.num_kernels
         # post conv
         
-        #x = nn.leaky_relu(x)
         x = self.activation_post(x)
         x = self.conv_post(x.transpose(0,2,1)).transpose(0,2,1)
         x = nn.tanh(x) 

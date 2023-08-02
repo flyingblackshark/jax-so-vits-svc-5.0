@@ -1,15 +1,7 @@
-# import torch
-# import torch.nn as nn
-# import torch.nn.functional as F
-# from torch.nn.utils import weight_norm, spectral_norm
-import numpy as np
-import jax
+
 import jax.numpy as jnp
 import flax.linen as nn
-from jax.nn.initializers import normal as normal_init
-from jax.nn.initializers import constant as constant_init
-from .snake import snake
-
+from vits.weightnorm import WeightNormConv2D
 class DiscriminatorP(nn.Module):
     hp:tuple
     period:tuple
@@ -21,13 +13,13 @@ class DiscriminatorP(nn.Module):
       
 
         self.convs = [
-            nn.Conv(64, (kernel_size, 1), (stride, 1)),
-            nn.Conv( 128, (kernel_size, 1), (stride, 1)),
-            nn.Conv( 256, (kernel_size, 1), (stride, 1)),
-            nn.Conv( 512, (kernel_size, 1), (stride, 1)),
-            nn.Conv( 1024, (kernel_size, 1), 1),
+            WeightNormConv2D(64, (kernel_size, 1), (stride, 1)),
+            WeightNormConv2D( 128, (kernel_size, 1), (stride, 1)),
+            WeightNormConv2D( 256, (kernel_size, 1), (stride, 1)),
+            WeightNormConv2D( 512, (kernel_size, 1), (stride, 1)),
+            WeightNormConv2D( 1024, (kernel_size, 1), 1),
         ]
-        self.conv_post = nn.Conv(1, (3, 1), 1)
+        self.conv_post = WeightNormConv2D(1, (3, 1), 1)
 
     def __call__(self, x,train=True):
         fmap = []
@@ -42,7 +34,7 @@ class DiscriminatorP(nn.Module):
 
         for l in self.convs:
             x = l(x.transpose(0,2,3,1)).transpose(0,3,1,2)
-            x = nn.leaky_relu(x, self.LRELU_SLOPE)
+            x = nn.swish(x)
             fmap.append(x)
         x = self.conv_post(x.transpose(0,2,3,1)).transpose(0,3,1,2)
         fmap.append(x)

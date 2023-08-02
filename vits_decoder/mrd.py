@@ -3,7 +3,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 import flax.linen as nn
-
+from vits.weightnorm import WeightNormConv2D
 import scipy
 class DiscriminatorR(nn.Module):
     resolution:tuple
@@ -11,13 +11,13 @@ class DiscriminatorR(nn.Module):
     def setup(self):
         self.LRELU_SLOPE = self.hp.mpd.lReLU_slope
         self.convs = [
-            nn.Conv( 32, (3, 9)),
-            nn.Conv( 32, (3, 9), strides=(1, 2)),
-            nn.Conv( 32, (3, 9), strides=(1, 2)),
-            nn.Conv( 32, (3, 9), strides=(1, 2)),
-            nn.Conv( 32, (3, 3)),
+            WeightNormConv2D( 32, (3, 9)),
+            WeightNormConv2D( 32, (3, 9), strides=(1, 2)),
+            WeightNormConv2D( 32, (3, 9), strides=(1, 2)),
+            WeightNormConv2D( 32, (3, 9), strides=(1, 2)),
+            WeightNormConv2D( 32, (3, 3)),
         ]
-        self.conv_post = nn.Conv( 1, (3, 3))
+        self.conv_post = WeightNormConv2D( 1, (3, 3))
     
     def __call__(self, x,train=True):
         fmap = []
@@ -25,7 +25,7 @@ class DiscriminatorR(nn.Module):
         x = jnp.expand_dims(x,1)
         for l in self.convs:
             x = l(x.transpose(0,2,3,1)).transpose(0,3,1,2)
-            x = nn.leaky_relu(x, self.LRELU_SLOPE)
+            x = nn.swish(x)
             fmap.append(x)
         x = self.conv_post(x.transpose(0,2,3,1)).transpose(0,3,1,2)
         fmap.append(x)
