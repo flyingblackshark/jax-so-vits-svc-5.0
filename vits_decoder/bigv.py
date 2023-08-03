@@ -15,13 +15,13 @@ class AMPBlock(nn.Module):
     def setup(self):
        
         self.convs1 =[
-            nn.Conv(self.channels,[ self.kernel_size], 1, kernel_dilation=self.dilation[0],kernel_init=nn.initializers.normal()),
-            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[1],kernel_init=nn.initializers.normal()),
-            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2],kernel_init=nn.initializers.normal())]
+            nn.Conv(self.channels,[ self.kernel_size], 1, kernel_dilation=self.dilation[0],kernel_init=nn.initializers.normal(0.01),bias_init=nn.initializers.normal(0.01)),
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[1],kernel_init=nn.initializers.normal(0.01),bias_init=nn.initializers.normal(0.01)),
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2],kernel_init=nn.initializers.normal(0.01),bias_init=nn.initializers.normal(0.01))]
         self.convs2 = [
-            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=nn.initializers.normal()),
-            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=nn.initializers.normal()),
-            nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=nn.initializers.normal())
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=nn.initializers.normal(0.01),bias_init=nn.initializers.normal(0.01)),
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=nn.initializers.normal(0.01),bias_init=nn.initializers.normal(0.01)),
+            nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=nn.initializers.normal(0.01),bias_init=nn.initializers.normal(0.01))
         ]
         # total number of conv layers
         self.num_layers = len(self.convs1) + len(self.convs2)

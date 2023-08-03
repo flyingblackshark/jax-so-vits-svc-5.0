@@ -3,7 +3,7 @@ train:
   model: "sovits"
   seed: 1234
   epochs: 10000
-  learning_rate: 2e-4
+  learning_rate: 2e-5
   betas: [0.95, 0.98]
   lr_decay: 0.999875
   total_steps: 30 # base on dataset size
