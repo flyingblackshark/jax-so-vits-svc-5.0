@@ -30,12 +30,12 @@ class MultiHeadAttention(nn.Module):
 
 
 
-        q = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),dtype=jnp.float32,bias_init=nn.initializers.normal())(x.transpose(0,2,1)).transpose(0,2,1)
-        k = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),dtype=jnp.float32,bias_init=nn.initializers.normal())(c.transpose(0,2,1)).transpose(0,2,1)
-        v = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),dtype=jnp.float32,bias_init=nn.initializers.normal())(c.transpose(0,2,1)).transpose(0,2,1)
+        q = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),dtype=jnp.float32)(x.transpose(0,2,1)).transpose(0,2,1)
+        k = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),dtype=jnp.float32)(c.transpose(0,2,1)).transpose(0,2,1)
+        v = nn.Conv(self.channels, [1],kernel_init=nn.initializers.xavier_uniform(),dtype=jnp.float32)(c.transpose(0,2,1)).transpose(0,2,1)
         x, attn = self.attention(q, k, v,emb_rel_k,emb_rel_v,k_channels, mask=attn_mask,train=train)
 
-        x = nn.Conv(self.out_channels, [1],kernel_init=nn.initializers.xavier_uniform(),dtype=jnp.float32,bias_init=nn.initializers.normal())(x.transpose(0,2,1)).transpose(0,2,1)
+        x = nn.Conv(self.out_channels, [1],kernel_init=nn.initializers.xavier_uniform(),dtype=jnp.float32)(x.transpose(0,2,1)).transpose(0,2,1)
         return x
 
     def attention(self, query, key, value, emb_rel_k,emb_rel_v,k_channels,mask=None,train=True):
@@ -205,8 +205,8 @@ class FFN(nn.Module):
     p_dropout:float=0.0
 
     def setup(self):
-        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
-        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],dtype=jnp.float32,bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
+        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],dtype=jnp.float32,kernel_init=nn.initializers.normal())
+        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],dtype=jnp.float32,kernel_init=nn.initializers.normal())
         self.drop = nn.Dropout(self.p_dropout)
 
     def __call__(self, x, x_mask,train=True):

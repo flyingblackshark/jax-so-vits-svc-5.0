@@ -1,20 +1,20 @@
 
 import jax.numpy as jnp
 import flax.linen as nn
-from vits.weightnorm import WeightNormConv
+
 
 class ScaleDiscriminator(nn.Module):
     def setup(self):
         self.convs = [
-           WeightNormConv(16, [15], 1),
-            WeightNormConv(64, [41], 4, feature_group_count =4),
-            WeightNormConv( 256, [41], 4, feature_group_count =16),
-            WeightNormConv( 1024, [41], 4, feature_group_count =64),
-            WeightNormConv( 1024, [41], 4, feature_group_count =256),
-            WeightNormConv( 1024, [5], 1),
+           nn.Conv(16, [15], 1,kernel_init=nn.initializers.normal()),
+            nn.Conv(64, [41], 4, feature_group_count =4,kernel_init=nn.initializers.normal()),
+            nn.Conv( 256, [41], 4, feature_group_count =16,kernel_init=nn.initializers.normal()),
+            nn.Conv( 1024, [41], 4, feature_group_count =64,kernel_init=nn.initializers.normal()),
+            nn.Conv( 1024, [41], 4, feature_group_count =256,kernel_init=nn.initializers.normal()),
+            nn.Conv( 1024, [5], 1,kernel_init=nn.initializers.normal()),
         ]
        
-        self.conv_post = WeightNormConv( 1, [3], 1)
+        self.conv_post = nn.Conv( 1, [3], 1,kernel_init=nn.initializers.normal())
 
     def __call__(self, x,train=True):
         fmap = []

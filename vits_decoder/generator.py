@@ -8,7 +8,7 @@ from .nsf import SourceModuleHnNSF
 from .bigv import AMPBlock
 from jax.nn.initializers import normal as normal_init
 from jax.nn.initializers import constant as constant_init
-from vits.weightnorm import WeightNormConvTranspose
+
 class SpeakerAdapter(nn.Module):
     speaker_dim : int
     adapter_dim : int
@@ -42,7 +42,7 @@ class Generator(nn.Module):
         #self.adapter = SpeakerAdapter(self.hp.vits.spk_dim, self.hp.gen.upsample_input)
         self.adapter = SpeakerAdapter(self.hp.vits.spk_dim, self.hp.gen.upsample_input)
         # pre conv
-        self.conv_pre = nn.Conv(features=self.hp.gen.upsample_initial_channel, kernel_size=[7], strides=[1],dtype=jnp.float32,bias_init=nn.initializers.normal())
+        self.conv_pre = nn.Conv(features=self.hp.gen.upsample_initial_channel, kernel_size=[7], strides=[1],dtype=jnp.float32,kernel_init=nn.initializers.normal())
         # nsf
         # self.f0_upsamp = nn.Upsample(
         #     scale_factor=np.prod(hp.gen.upsample_rates))
@@ -55,7 +55,7 @@ class Generator(nn.Module):
             # print(f'ups: {i} {k}, {u}, {(k - u) // 2}')
             # base
             ups.append(
-                    WeightNormConvTranspose(
+                    nn.ConvTranspose(
                         self.hp.gen.upsample_initial_channel // (2 ** (i + 1)),
                         (k,),
                         (u,))
@@ -69,13 +69,13 @@ class Generator(nn.Module):
                         features=self.hp.gen.upsample_initial_channel // (2 ** (i + 1)),
                         kernel_size=[stride_f0 * 2],
                         strides=[stride_f0],
-                        dtype=jnp.float32,bias_init=nn.initializers.normal()
+                        dtype=jnp.float32,kernel_init=nn.initializers.normal()
                     )
                 )
             else:
                 noise_convs.append(
                     nn.Conv(features=self.hp.gen.upsample_initial_channel //
-                           (2 ** (i + 1)), kernel_size=[1],dtype=jnp.float32,bias_init=nn.initializers.normal())
+                           (2 ** (i + 1)), kernel_size=[1],dtype=jnp.float32,kernel_init=nn.initializers.normal())
                 )
 
         # residual blocks using anti-aliased multi-periodicity composition modules (AMP)
@@ -86,7 +86,7 @@ class Generator(nn.Module):
                 resblocks.append(AMPBlock(ch, k, d))
 
         # post conv
-        self.conv_post = nn.Conv(features=1, kernel_size=[7], strides=1 , use_bias=False,dtype=jnp.float32)
+        self.conv_post = nn.Conv(features=1, kernel_size=[7], strides=1 , use_bias=False,dtype=jnp.float32,kernel_init=nn.initializers.normal())
         self.activation_post = SnakeBeta(ch)
         # weight initialization
         self.ups = ups

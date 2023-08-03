@@ -7,7 +7,7 @@ import jax
 from typing import Tuple
 from jax.nn.initializers import normal as normal_init
 from vits.snake import SnakeBeta
-from vits.weightnorm import WeightNormConv
+
 class AMPBlock(nn.Module):
     channels:int
     kernel_size:int=3
@@ -15,13 +15,13 @@ class AMPBlock(nn.Module):
     def setup(self):
        
         self.convs1 =[
-            WeightNormConv(self.channels,[ self.kernel_size], 1, kernel_dilation=self.dilation[0]),
-            WeightNormConv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[1]),
-            WeightNormConv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2])]
+            nn.Conv(self.channels,[ self.kernel_size], 1, kernel_dilation=self.dilation[0],kernel_init=nn.initializers.normal()),
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[1],kernel_init=nn.initializers.normal()),
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=self.dilation[2],kernel_init=nn.initializers.normal())]
         self.convs2 = [
-            WeightNormConv( self.channels, [self.kernel_size], 1, kernel_dilation=1),
-            WeightNormConv( self.channels, [self.kernel_size], 1, kernel_dilation=1),
-            WeightNormConv(self.channels, [self.kernel_size], 1, kernel_dilation=1)
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=nn.initializers.normal()),
+            nn.Conv( self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=nn.initializers.normal()),
+            nn.Conv(self.channels, [self.kernel_size], 1, kernel_dilation=1,kernel_init=nn.initializers.normal())
         ]
         # total number of conv layers
         self.num_layers = len(self.convs1) + len(self.convs2)

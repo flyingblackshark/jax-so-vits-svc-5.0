@@ -3,7 +3,7 @@ import numpy as np
 import jax.numpy as jnp
 from flax import linen as nn
 from jax.nn.initializers import constant as constant_init
-from vits.weightnorm import WeightNormConv
+
 class WN(nn.Module):
     hidden_channels:int
     kernel_size:int
@@ -18,13 +18,13 @@ class WN(nn.Module):
         res_skip_layers = []
         self.dropout_layer = nn.Dropout(rate=self.p_dropout)
         if self.gin_channels != 0:
-            self.cond_layer = WeightNormConv(features=2 * self.hidden_channels * self.n_layers,kernel_size=[1])
+            self.cond_layer = nn.Conv(features=2 * self.hidden_channels * self.n_layers,kernel_size=[1],kernel_init=nn.initializers.normal())
         for i in range(self.n_layers):
             dilation = self.dilation_rate**i
-            in_layer = WeightNormConv(
+            in_layer = nn.Conv(
                 features=2 * self.hidden_channels,
                 kernel_size=[self.kernel_size],
-                kernel_dilation=dilation
+                kernel_dilation=dilation,kernel_init=nn.initializers.normal()
             )
             in_layers.append(in_layer)
 
@@ -34,7 +34,7 @@ class WN(nn.Module):
             else:
                 res_skip_channels = self.hidden_channels
 
-            res_skip_layer = WeightNormConv(features=res_skip_channels, kernel_size=[1])
+            res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1],kernel_init=nn.initializers.normal())
             res_skip_layers.append(res_skip_layer)
         self.res_skip_layers = res_skip_layers
         self.in_layers = in_layers
@@ -95,7 +95,7 @@ class ResidualCouplingLayer(nn.Module):
         assert self.channels % 2 == 0, "channels should be divisible by 2"
         self.half_channels = self.channels // 2
 
-        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],dtype=jnp.float32,bias_init=nn.initializers.normal())
+        self.pre = nn.Conv(features=self.hidden_channels, kernel_size=[1],dtype=jnp.float32,kernel_init=nn.initializers.normal())
         # no use gin_channels
         self.enc = WN(
             self.hidden_channels,
@@ -106,7 +106,7 @@ class ResidualCouplingLayer(nn.Module):
         )
         self.post = nn.Conv(features= self.half_channels * (2 - self.mean_only), kernel_size=[1],kernel_init=constant_init(0.),bias_init=constant_init(0.),dtype=jnp.float32)
         # SNAC Speaker-normalized Affine Coupling Layer
-        self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1],dtype=jnp.float32,bias_init=nn.initializers.normal())
+        self.snac = nn.Conv(features=2 * self.half_channels, kernel_size=[1],dtype=jnp.float32,kernel_init=nn.initializers.normal())
 
     def __call__(self, x, x_mask, g=None, reverse=False,train=True):
         speaker = self.snac(jnp.expand_dims(g,-1).transpose(0,2,1)).transpose(0,2,1)

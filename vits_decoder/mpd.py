@@ -1,7 +1,7 @@
 
 import jax.numpy as jnp
 import flax.linen as nn
-from vits.weightnorm import WeightNormConv2D
+
 class DiscriminatorP(nn.Module):
     hp:tuple
     period:tuple
@@ -13,13 +13,13 @@ class DiscriminatorP(nn.Module):
       
 
         self.convs = [
-            WeightNormConv2D(64, (kernel_size, 1), (stride, 1)),
-            WeightNormConv2D( 128, (kernel_size, 1), (stride, 1)),
-            WeightNormConv2D( 256, (kernel_size, 1), (stride, 1)),
-            WeightNormConv2D( 512, (kernel_size, 1), (stride, 1)),
-            WeightNormConv2D( 1024, (kernel_size, 1), 1),
+            nn.Conv(64, (kernel_size, 1), (stride, 1),kernel_init=nn.initializers.normal()),
+            nn.Conv( 128, (kernel_size, 1), (stride, 1),kernel_init=nn.initializers.normal()),
+            nn.Conv( 256, (kernel_size, 1), (stride, 1),kernel_init=nn.initializers.normal()),
+            nn.Conv( 512, (kernel_size, 1), (stride, 1),kernel_init=nn.initializers.normal()),
+            nn.Conv( 1024, (kernel_size, 1), 1,kernel_init=nn.initializers.normal()),
         ]
-        self.conv_post = WeightNormConv2D(1, (3, 1), 1)
+        self.conv_post = nn.Conv(1, (3, 1), 1,kernel_init=nn.initializers.normal())
 
     def __call__(self, x,train=True):
         fmap = []
