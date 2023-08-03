@@ -58,8 +58,8 @@ mrd:
 #############################
 log:
   info_interval: 100
-  eval_interval: 50
-  save_interval: 50
+  eval_interval: 100
+  save_interval: 100
   num_audio: 6
   pth_dir: 'chkpt'
   log_dir: 'logs'

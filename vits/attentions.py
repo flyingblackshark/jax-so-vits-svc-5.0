@@ -205,8 +205,8 @@ class FFN(nn.Module):
     p_dropout:float=0.0
 
     def setup(self):
-        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],dtype=jnp.float32,kernel_init=nn.initializers.normal())
-        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],dtype=jnp.float32,kernel_init=nn.initializers.normal())
+        self.conv_1 = nn.Conv(self.filter_channels, [self.kernel_size],dtype=jnp.float32,kernel_init=nn.initializers.normal(),bias_init=nn.initializers.normal())
+        self.conv_2 = nn.Conv(self.out_channels, [self.kernel_size],dtype=jnp.float32,kernel_init=nn.initializers.normal(),bias_init=nn.initializers.normal())
         self.drop = nn.Dropout(self.p_dropout)
 
     def __call__(self, x, x_mask,train=True):
