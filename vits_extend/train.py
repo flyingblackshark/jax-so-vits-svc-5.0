@@ -31,8 +31,7 @@ def create_generator_state(rng, model_cls,hp,trainloader):
     hp=hp)
     
     exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=hp.train.total_steps,decay_rate=hp.train.lr_decay)
-    tx = optax.chain(optax.clip_by_global_norm(1.),
-                     optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1]))
+    tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
         
     (fake_vec_l,fake_vec,fake_pit,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
     params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
@@ -50,8 +49,7 @@ def create_discriminator_state(rng, model_cls,hp,trainloader):
     (fake_vec_l,fake_vec,fake_pit,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
     fake_audio = fake_audio[:,:,:hp.data.segment_size]
     exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=hp.train.total_steps, decay_rate=hp.train.lr_decay)
-    tx = optax.chain(optax.clip_by_global_norm(1.),
-                     optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1]))
+    tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
     
     variables = model.init(rng, fake_audio)
 
@@ -87,10 +85,10 @@ def train(args,chkpt_path, hp):
             stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
             
             dropout_key ,predict_key, rng = jax.random.split(rng_e, 3)
-            fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r),spk_preds = generator_state.apply_fn(
+            fake_audio, ids_slice, z_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r) = generator_state.apply_fn(
                 {'params': params},   pit,vec, spec, spk, vec_l,spec_l,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
             
-            spk_loss = (1-optax.cosine_similarity(spk,spk_preds)).mean()
+            #spk_loss = (1-optax.cosine_similarity(spk,spk_preds)).mean()
             
             audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
@@ -125,12 +123,12 @@ def train(args,chkpt_path, hp):
             loss_kl_f = kl_loss(z_f, logs_q, m_p, logs_p, logdet_f, z_mask) * hp.train.c_kl
             loss_kl_r = kl_loss(z_r, logs_p, m_q, logs_q, logdet_r, z_mask) * hp.train.c_kl
             # Loss
-            loss_g = mel_loss + score_loss +  feat_loss + stft_loss+ loss_kl_f + loss_kl_r * 0.5  + spk_loss * 2
+            loss_g = mel_loss + score_loss +  feat_loss + stft_loss+ loss_kl_f + loss_kl_r * 0.5 # + spk_loss * 2
 
-            return loss_g, (fake_audio,audio,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss,spk_loss)
+            return loss_g, (fake_audio,audio,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)
 
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss_g,(fake_audio_g,audio_g,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss,spk_loss)), grads_g = grad_fn(generator_state.params)
+        (loss_g,(fake_audio_g,audio_g,mel_loss,stft_loss,loss_kl_f,loss_kl_r,score_loss)), grads_g = grad_fn(generator_state.params)
 
         # Average across the devices.
         grads_g = jax.lax.pmean(grads_g, axis_name='num_devices')
@@ -139,7 +137,7 @@ def train(args,chkpt_path, hp):
         loss_s = jax.lax.pmean(stft_loss, axis_name='num_devices')
         loss_k = jax.lax.pmean(loss_kl_f, axis_name='num_devices')
         loss_r = jax.lax.pmean(loss_kl_r, axis_name='num_devices')
-        loss_i = jax.lax.pmean(spk_loss, axis_name='num_devices')
+        #loss_i = jax.lax.pmean(spk_loss, axis_name='num_devices')
 
         new_generator_state = generator_state.apply_gradients(
             grads=grads_g)
@@ -168,7 +166,7 @@ def train(args,chkpt_path, hp):
 
         # Update the discriminator through gradient descent.
         new_discriminator_state = discriminator_state.apply_gradients(grads=grads_d)
-        return new_generator_state,new_discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss,loss_i
+        return new_generator_state,new_discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss
     @partial(jax.pmap, axis_name='num_devices')         
     def do_validate(generator: TrainState,pit_val:jnp.ndarray,vec_val:jnp.ndarray,spk_val:jnp.ndarray,vec_l_val:jnp.ndarray,audio:jnp.ndarray):   
         stft = TacotronSTFT(filter_length=hp.data.filter_length,
@@ -276,17 +274,17 @@ def train(args,chkpt_path, hp):
             spec_l = shard(spec_l)
             audio = shard(audio)
             audio_l = shard(audio_l)
-            generator_state,discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss,loss_i=\
+            generator_state,discriminator_state,loss_g,loss_d,loss_m,loss_s,loss_k,loss_r,score_loss=\
             combine_step(generator_state, discriminator_state,pit=pit,vec=vec, spk=spk_n, spec=spec,vec_l=vec_l,spec_l=spec_l,audio_e=audio,rng_e=step_key)
 
             step += 1
 
-            loss_g,loss_d,loss_s,loss_m,loss_k,loss_r,score_loss,loss_i = jax.device_get([loss_g[0], loss_d[0],loss_s[0],loss_m[0],loss_k[0],loss_r[0],score_loss[0],loss_i[0]])
+            loss_g,loss_d,loss_s,loss_m,loss_k,loss_r,score_loss = jax.device_get([loss_g[0], loss_d[0],loss_s[0],loss_m[0],loss_k[0],loss_r[0],score_loss[0]])
             if step % hp.log.info_interval == 0:
                 writer.log_training(
                     loss_g, loss_d, loss_m, loss_s, loss_k, loss_r, score_loss,step)
                 logger.info("g %.04f m %.04f s %.04f d %.04f k %.04f r %.04f i %.04f | step %d" % (
-                    loss_g, loss_m, loss_s, loss_d, loss_k, loss_r,loss_i, step))
+                    loss_g, loss_m, loss_s, loss_d, loss_k, loss_r,0., step))
                 
         if epoch % hp.log.eval_interval == 0:
             validate(generator_state)

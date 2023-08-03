@@ -208,12 +208,12 @@ class SynthesizerTrn(nn.Module):
         z_f, logdet_f = self.flow(z_q, spec_mask, g=spk,reverse=False,train=train)
         z_r, logdet_r = self.flow(z_p, spec_mask, g=spk,reverse=True,train=train)
 
-        def gradient_reversal(x):
-            zeros = -x + jax.lax.stop_gradient(x)
-            return zeros + jax.lax.stop_gradient(x)
+        # def gradient_reversal(x):
+        #     zeros = -x + jax.lax.stop_gradient(x)
+        #     return zeros + jax.lax.stop_gradient(x)
         
-        spk_preds = self.speaker_classifier(gradient_reversal(x))
-        return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r),spk_preds
+        #spk_preds = self.speaker_classifier(gradient_reversal(x))
+        return audio, ids_slice, spec_mask, (z_f, z_r, z_p, m_p, logs_p, z_q, m_q, logs_q, logdet_f, logdet_r)#,spk_preds
 
     def infer(self,  pit,vec, spk, vec_l):
         rng = self.make_rng('rnorms')
