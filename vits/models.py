@@ -167,10 +167,10 @@ class SynthesizerTrn(nn.Module):
             3,
             0.1
         )
-        self.speaker_classifier = SpeakerClassifier(
-            self.hp.vits.hidden_channels,
-            self.hp.vits.spk_dim,
-        )
+        # self.speaker_classifier = SpeakerClassifier(
+        #     self.hp.vits.hidden_channels,
+        #     self.hp.vits.spk_dim,
+        # )
         self.enc_q = PosteriorEncoder(
             self.spec_channels,
             self.hp.vits.inter_channels,
