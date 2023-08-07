@@ -30,8 +30,8 @@ def create_generator_state(rng, model_cls,hp,trainloader):
     segment_size=hp.data.segment_size // hp.data.hop_length,
     hp=hp)
     
-    exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=hp.train.total_steps,decay_rate=hp.train.lr_decay)
-    tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
+    #exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=hp.train.total_steps,decay_rate=hp.train.lr_decay)
+    tx = optax.lion(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1])
         
     (fake_vec_l,fake_vec,fake_pit,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
     params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
