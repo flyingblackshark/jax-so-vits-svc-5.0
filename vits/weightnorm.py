@@ -47,7 +47,7 @@ class WeightNormConv(nn.Module):
             x.shape[-1] // self.feature_group_count,
             conv.kernel_size[0],
         )
-        weight_v = self.param("weight_v", jax.nn.initializers.he_normal(), weight_shape)    
+        weight_v = self.param("weight_v", jax.nn.initializers.normal(0.01), weight_shape)    
         weight_g = self.param("weight_g", lambda _: jnp.linalg.norm(weight_v, axis=(0, 1))[None, None, :])
         bias = self.param("bias", jax.nn.initializers.zeros, (conv.features,))
         
@@ -105,7 +105,7 @@ class WeightNormConv2D(nn.Module):
             for i in range(x.shape[3]):
                 x=x.at[:,:,:,i].set(jnp.sqrt(jnp.sum(jnp.square(x[:,:,:,i]))))
             return x                   
-        weight_v = self.param("weight_v", jax.nn.initializers.he_normal(), weight_shape)    
+        weight_v = self.param("weight_v", jax.nn.initializers.normal(0.01), weight_shape)    
         weight_g = self.param("weight_g", lambda _: norm_2d(weight_v))
         bias = self.param("bias", jax.nn.initializers.zeros, (conv.features,))
         
@@ -153,7 +153,7 @@ class WeightNormConvTranspose(nn.Module):
             x.shape[-1],
             conv.kernel_size[0],
         )
-        weight_v = self.param("weight_v", jax.nn.initializers.he_normal(), weight_shape)
+        weight_v = self.param("weight_v", jax.nn.initializers.normal(0.01), weight_shape)
         weight_g = self.param("weight_g", lambda _: jnp.linalg.norm(weight_v, axis=(0, 1))[None, None, :])
         bias = self.param("bias", jax.nn.initializers.zeros, (conv.features,))
         

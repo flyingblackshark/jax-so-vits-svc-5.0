@@ -3,10 +3,10 @@ train:
   model: "sovits"
   seed: 1234
   epochs: 10000
-  learning_rate: 5e-5
+  learning_rate: 2e-5
   betas: [0.95, 0.98]
   lr_decay: 0.999875
-  total_steps: 10 # base on dataset size
+  total_steps: 30 # base on dataset size
   eps: 1e-9
   batch_size: 64
   c_stft: 9
@@ -34,13 +34,13 @@ vits:
   gin_channels: 256
   inter_channels: 192
   hidden_channels: 192
-  filter_channels: 1024
+  filter_channels: 512
 #############################
 gen:
   upsample_input: 192
   upsample_rates: [5,4,4,2,2]
   upsample_kernel_sizes: [15,8,8,4,4]
-  upsample_initial_channel: 768
+  upsample_initial_channel: 320
   resblock_kernel_sizes: [3,7,11]
   resblock_dilation_sizes: [[1,3,5], [1,3,5], [1,3,5]]
 #############################
