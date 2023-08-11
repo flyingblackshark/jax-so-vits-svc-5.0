@@ -2,7 +2,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 import flax.linen as nn
-
+from vits.weightnorm import WeightNormConvTranspose
 from vits.snake import SnakeBeta
 from .nsf import SourceModuleHnNSF
 from .bigv import AMPBlock
@@ -55,11 +55,10 @@ class Generator(nn.Module):
             # print(f'ups: {i} {k}, {u}, {(k - u) // 2}')
             # base
             ups.append(
-                    nn.ConvTranspose(
+                    WeightNormConvTranspose(
                         self.hp.gen.upsample_initial_channel // (2 ** (i + 1)),
                         (k,),
-                        (u,),
-                        kernel_init=normal_init(0.01),bias_init=nn.initializers.normal())
+                        (u,))
                 )
             # nsf
             if i + 1 < len(self.hp.gen.upsample_rates):

@@ -6,7 +6,7 @@ from flax import linen as nn
 from vits import commons
 import jax
 
-
+from vits.weightnorm import WeightNormConv
 from jax.nn.initializers import normal as normal_init
 from jax.nn.initializers import constant as constant_init
 
@@ -24,15 +24,13 @@ class WN(nn.Module):
         res_skip_layers = []
         self.dropout_layer = nn.Dropout(rate=self.p_dropout)
         if self.gin_channels != 0:
-            self.cond_layer = nn.Conv(features=2 * self.hidden_channels * self.n_layers,kernel_size=[1],kernel_init=nn.initializers.normal(),bias_init=nn.initializers.normal())
+            self.cond_layer = WeightNormConv(features=2 * self.hidden_channels * self.n_layers,kernel_size=[1])
         for i in range(self.n_layers):
             dilation = self.dilation_rate**i
-            in_layer = nn.Conv(
+            in_layer = WeightNormConv(
                 features=2 * self.hidden_channels,
                 kernel_size=[self.kernel_size],
                 kernel_dilation=dilation,
-                kernel_init=nn.initializers.normal(),
-                bias_init=nn.initializers.normal()
             )
             in_layers.append(in_layer)
 
@@ -42,7 +40,7 @@ class WN(nn.Module):
             else:
                 res_skip_channels = self.hidden_channels
 
-            res_skip_layer = nn.Conv(features=res_skip_channels, kernel_size=[1],bias_init=nn.initializers.normal(),kernel_init=nn.initializers.normal())
+            res_skip_layer = WeightNormConv(features=res_skip_channels, kernel_size=[1])
             res_skip_layers.append(res_skip_layer)
         self.res_skip_layers = res_skip_layers
         self.in_layers = in_layers

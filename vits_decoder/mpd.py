@@ -1,14 +1,6 @@
-# import torch
-# import torch.nn as nn
-# import torch.nn.functional as F
-# from torch.nn.utils import weight_norm, spectral_norm
-import numpy as np
-import jax
+from vits.weightnorm import WeightNormConv2D
 import jax.numpy as jnp
 import flax.linen as nn
-from jax.nn.initializers import normal as normal_init
-from jax.nn.initializers import constant as constant_init
-from .snake import snake
 
 class DiscriminatorP(nn.Module):
     hp:tuple
@@ -21,13 +13,13 @@ class DiscriminatorP(nn.Module):
       
 
         self.convs = [
-            nn.Conv(64, (kernel_size, 1), (stride, 1)),
-            nn.Conv( 128, (kernel_size, 1), (stride, 1)),
-            nn.Conv( 256, (kernel_size, 1), (stride, 1)),
-            nn.Conv( 512, (kernel_size, 1), (stride, 1)),
-            nn.Conv( 1024, (kernel_size, 1), 1),
+            WeightNormConv2D(64, (kernel_size, 1), (stride, 1)),
+            WeightNormConv2D( 128, (kernel_size, 1), (stride, 1)),
+            WeightNormConv2D( 256, (kernel_size, 1), (stride, 1)),
+            WeightNormConv2D( 512, (kernel_size, 1), (stride, 1)),
+            WeightNormConv2D( 1024, (kernel_size, 1), 1),
         ]
-        self.conv_post = nn.Conv(1, (3, 1), 1)
+        self.conv_post = WeightNormConv2D(1, (3, 1), 1)
 
     def __call__(self, x,train=True):
         fmap = []
