@@ -223,7 +223,7 @@ def train(args,chkpt_path, hp):
     
     init_epoch = 1
     step = 0
-    #if rank == 0:
+    #if rank == 0:items
     pth_dir = os.path.join(hp.log.pth_dir, args.name)
     log_dir = os.path.join(hp.log.log_dir, args.name)
     os.makedirs(pth_dir, exist_ok=True)
@@ -245,7 +245,7 @@ def train(args,chkpt_path, hp):
     discriminator_state = create_discriminator_state(key_discriminator, Discriminator,hp,trainloader)
     generator_state = create_generator_state(key_generator, SynthesizerTrn,hp,trainloader)
 
-    options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=2, create=True)
+    options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=hp.train.max_to_keep, create=True)
     orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
     checkpoint_manager = orbax.checkpoint.CheckpointManager(
         'chkpt/sovits5.0/', orbax_checkpointer, options)
