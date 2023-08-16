@@ -89,22 +89,22 @@ def train(args,chkpt_path, hp):
                     mel_fmin=hp.data.mel_fmin,
                     mel_fmax=hp.data.mel_fmax)
             stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
-            
+            seg_c = hp.data.segment_size//hp.data.hop_length
             dropout_key ,predict_key, rng = jax.random.split(rng_e, 3)
             print(audio_e.shape)
-            mel_real = stft.mel_spectrogram(audio_e.squeeze(1))
+            mel_real = stft.mel_spectrogram(audio_e.squeeze(1))[:,:,:seg_c]
             print(mel_real.shape)
             fake_audio = generator_state.apply_fn({'params': params},  mel_real, pit,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
             print(fake_audio.shape)
             #spk_loss = (1-optax.cosine_similarity(spk,spk_preds)).mean()
             #audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
-            mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
+            mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))[:,:,:seg_c]
             
             
             mel_loss = jnp.mean(jnp.abs(mel_fake - mel_real)) * hp.train.c_mel
             #Multi-Resolution STFT Loss
             
-            sc_loss, mag_loss = stft_criterion(fake_audio.squeeze(1), audio.squeeze(1))
+            sc_loss, mag_loss = stft_criterion(fake_audio.squeeze(1), audio_e.squeeze(1))
             stft_loss = (sc_loss + mag_loss) * hp.train.c_stft
 
             # Generator Loss 
@@ -116,8 +116,7 @@ def train(args,chkpt_path, hp):
             score_loss = score_loss / len(disc_fake)
 
             # Feature Loss
-            disc_real= discriminator_state.apply_fn(
-            {'params': discriminator_state.params}, audio)
+            disc_real= discriminator_state.apply_fn({'params': discriminator_state.params}, audio_e)
 
             feat_loss = 0.0
             for (feat_fake, _), (feat_real, _) in zip(disc_fake, disc_real):
@@ -132,10 +131,10 @@ def train(args,chkpt_path, hp):
             # Loss
             loss_g = mel_loss + score_loss +  feat_loss + stft_loss#+ loss_kl_f + loss_kl_r * 0.5  #+ spk_loss * 2
 
-            return loss_g, (fake_audio,audio,mel_loss,stft_loss,score_loss)
+            return loss_g, (fake_audio,mel_loss,stft_loss,score_loss)
 
         grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss_g,(fake_audio_g,audio_g,mel_loss,stft_loss,score_loss)), grads_g = grad_fn(generator_state.params)
+        (loss_g,(fake_audio_g,mel_loss,stft_loss,score_loss)), grads_g = grad_fn(generator_state.params)
 
         # Average across the devices.
         grads_g = jax.lax.pmean(grads_g, axis_name='num_devices')
@@ -153,7 +152,7 @@ def train(args,chkpt_path, hp):
             disc_fake  = discriminator_state.apply_fn(
                 {'params': params},fake_audio_g)
             disc_real  = discriminator_state.apply_fn(
-                {'params': params},audio_g)
+                {'params': params},audio_e)
             loss_d = 0.0
             for (_, score_fake), (_, score_real) in zip(disc_fake, disc_real):
                 loss_d += jnp.mean(jnp.square(score_real - 1.0))

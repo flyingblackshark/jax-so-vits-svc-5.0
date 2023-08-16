@@ -104,7 +104,7 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
 
         pit = pit[:len_min]
         wav = wav[:, :len_wav]
-        if len_min > (use * self.hop_length):
+        if len_min > self.segment_size:
             max_frame_start = len_min - self.segment_size - 1
             frame_start = random.randint(0, max_frame_start)
             frame_end = frame_start + self.segment_size

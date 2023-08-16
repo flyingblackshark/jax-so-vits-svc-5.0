@@ -103,8 +103,8 @@ class Generator(nn.Module):
         # nsf
         f0 = f0[:, None]
         B, H, W = f0.shape
-        #f0 = jax.image.resize(f0, shape=(B, H, x.shape[-1] * self.scale_factor), method='nearest').transpose(0,2,1)
-        f0 = f0.transpose(0,2,1)
+        f0 = jax.image.resize(f0, shape=(B, H, x.shape[-1] * self.scale_factor), method='nearest').transpose(0,2,1)
+        #f0 = f0.transpose(0,2,1)
         har_source = self.m_source(f0,rng)
         har_source = har_source.transpose(0,2,1)
         x = self.conv_pre(x.transpose(0,2,1)).transpose(0,2,1)
