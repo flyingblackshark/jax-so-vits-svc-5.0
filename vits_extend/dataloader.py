@@ -14,8 +14,8 @@ def create_dataloader_train(hps):
         batch_size=hps.train.batch_size,
         num_workers=0,
         shuffle=True,
-        pin_memory=True,
-        collate_fn=collate_fn,
+        pin_memory=False,
+        #collate_fn=collate_fn,
         persistent_workers=False,
         drop_last=True)
     return train_loader

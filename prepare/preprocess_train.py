@@ -50,7 +50,7 @@ if __name__ == "__main__":
     random.shuffle(all_items)
     valids = all_items[:8]
     valids.sort()
-    trains = all_items[8:]
+    trains = all_items[8:158]
     # trains.sort()
     fw = open("./files/valid.txt", "w", encoding="utf-8")
     for strs in valids:

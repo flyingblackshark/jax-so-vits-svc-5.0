@@ -46,7 +46,8 @@ class Generator(nn.Module):
         # nsf
         # self.f0_upsamp = nn.Upsample(
         #     scale_factor=np.prod(hp.gen.upsample_rates))
-        self.scale_factor = np.prod(self.hp.gen.upsample_rates)
+        #self.scale_factor = np.prod(self.hp.gen.upsample_rates)
+        self.scale_factor = self.hp.data.hop_length
         self.m_source = SourceModuleHnNSF(sampling_rate=self.hp.data.sampling_rate)
         noise_convs = []
         # transposed conv-based upsamplers. does not apply anti-aliasing
@@ -55,10 +56,10 @@ class Generator(nn.Module):
             # print(f'ups: {i} {k}, {u}, {(k - u) // 2}')
             # base
             ups.append(
-                    WeightNormConvTranspose(
+                    nn.ConvTranspose(
                         self.hp.gen.upsample_initial_channel // (2 ** (i + 1)),
                         (k,),
-                        (u,))
+                        (u,),)
                 )
             # nsf
             if i + 1 < len(self.hp.gen.upsample_rates):
@@ -93,16 +94,17 @@ class Generator(nn.Module):
         self.noise_convs = noise_convs
         self.resblocks = resblocks
 
-    def __call__(self, spk, x, f0,train=True):
+    def __call__(self, x, f0,train=True):
         rng = self.make_rng('rnorms')
         x_key , rng = jax.random.split(rng)
         x = x + jax.random.normal(x_key,x.shape)
         # adapter
-        x = self.adapter(x, spk)
+        #x = self.adapter(x, spk)
         # nsf
         f0 = f0[:, None]
         B, H, W = f0.shape
-        f0 = jax.image.resize(f0, shape=(B, H, W * self.scale_factor), method='nearest').transpose(0,2,1)
+        #f0 = jax.image.resize(f0, shape=(B, H, x.shape[-1] * self.scale_factor), method='nearest').transpose(0,2,1)
+        f0 = f0.transpose(0,2,1)
         har_source = self.m_source(f0,rng)
         har_source = har_source.transpose(0,2,1)
         x = self.conv_pre(x.transpose(0,2,1)).transpose(0,2,1)
