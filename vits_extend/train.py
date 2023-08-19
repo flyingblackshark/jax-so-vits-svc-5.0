@@ -8,7 +8,7 @@ import optax
 import numpy as np
 import orbax
 from vits_extend.dataloader import create_dataloader_train
-#from vits_extend.dataloader import create_dataloader_eval
+from vits_extend.dataloader import create_dataloader_eval
 from vits_extend.writer import MyWriter
 from vits_extend.stft import TacotronSTFT
 from vits_extend.stft_loss import MultiResolutionSTFTLoss
@@ -21,6 +21,7 @@ from functools import partial
 from flax.training.train_state import TrainState
 from flax.training.common_utils import shard, shard_prng_key
 from flax.training import orbax_utils
+import random
 # from jax.experimental.compilation_cache import compilation_cache as cc
 # cc.initialize_cache("./jax_cache")
 PRNGKey = jnp.ndarray
@@ -41,6 +42,10 @@ def create_generator_state(rng, model_cls,hp,trainloader):
     (fake_audio,fake_pit) = next(iter(trainloader))
     fake_audio = jnp.asarray(fake_audio)
     fake_pit = jnp.asarray(fake_pit)
+    frame_start = random.randint(0, hp.data.segment_size*3)
+    frame_end = frame_start + hp.data.segment_size
+    fake_audio = fake_audio[:,:,frame_start:frame_end]
+    fake_pit = fake_pit[:,frame_start:frame_end]
     params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
     init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
     mel_real = stft.mel_spectrogram(fake_audio.squeeze(1))
@@ -58,7 +63,9 @@ def create_discriminator_state(rng, model_cls,hp,trainloader):
     #fake_audio = fake_audio[:,:,:hp.data.segment_size]
     #exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=hp.train.total_steps, decay_rate=hp.train.lr_decay)
     tx = optax.lion(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1])
-    
+    frame_start = random.randint(0, hp.data.segment_size*3)
+    frame_end = frame_start + hp.data.segment_size
+    fake_audio = fake_audio[:,:,frame_start:frame_end]
     variables = model.init(rng, fake_audio)
 
     state = TrainState.create(apply_fn=model.apply, tx=tx, 
@@ -91,11 +98,17 @@ def train(args,chkpt_path, hp):
             stft_criterion = MultiResolutionSTFTLoss(eval(hp.mrd.resolutions))
             seg_c = hp.data.segment_size//hp.data.hop_length
             dropout_key ,predict_key, rng = jax.random.split(rng_e, 3)
-            print(audio_e.shape)
-            mel_real = stft.mel_spectrogram(audio_e.squeeze(1))[:,:,:seg_c]
-            print(mel_real.shape)
+
+
+
+            frame_start = random.randint(0, hp.data.segment_size*3)
+            frame_end = frame_start + hp.data.segment_size
+            audio = audio_e[:,:,frame_start:frame_end]
+            print(audio.shape)
+            mel_real = stft.mel_spectrogram(audio.squeeze(1))[:,:,:seg_c]
+            #print(mel_real.shape)
             fake_audio = generator_state.apply_fn({'params': params},  mel_real, pit,train=True, rngs={'dropout': dropout_key,'rnorms':predict_key})
-            print(fake_audio.shape)
+            #print(fake_audio.shape)
             #spk_loss = (1-optax.cosine_similarity(spk,spk_preds)).mean()
             #audio = commons.slice_segments(audio_e, ids_slice * hp.data.hop_length, hp.data.segment_size)  # slice
             mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))[:,:,:seg_c]
@@ -104,7 +117,7 @@ def train(args,chkpt_path, hp):
             mel_loss = jnp.mean(jnp.abs(mel_fake - mel_real)) * hp.train.c_mel
             #Multi-Resolution STFT Loss
             
-            sc_loss, mag_loss = stft_criterion(fake_audio.squeeze(1), audio_e.squeeze(1))
+            sc_loss, mag_loss = stft_criterion(fake_audio.squeeze(1), audio.squeeze(1))
             stft_loss = (sc_loss + mag_loss) * hp.train.c_stft
 
             # Generator Loss 
@@ -116,7 +129,7 @@ def train(args,chkpt_path, hp):
             score_loss = score_loss / len(disc_fake)
 
             # Feature Loss
-            disc_real= discriminator_state.apply_fn({'params': discriminator_state.params}, audio_e)
+            disc_real= discriminator_state.apply_fn({'params': discriminator_state.params}, audio)
 
             feat_loss = 0.0
             for (feat_fake, _), (feat_real, _) in zip(disc_fake, disc_real):
@@ -173,55 +186,55 @@ def train(args,chkpt_path, hp):
         # Update the discriminator through gradient descent.
         new_discriminator_state = discriminator_state.apply_gradients(grads=grads_d)
         return new_generator_state,new_discriminator_state,loss_g,loss_d,loss_m,loss_s,score_loss
-    # @partial(jax.pmap, axis_name='num_devices')         
-    # def do_validate(generator: TrainState,ppg_val:jnp.ndarray,pit_val:jnp.ndarray,vec_val:jnp.ndarray,spk_val:jnp.ndarray,ppg_l_val:jnp.ndarray,audio:jnp.ndarray):   
-    #     stft = TacotronSTFT(filter_length=hp.data.filter_length,
-    #             hop_length=hp.data.hop_length,
-    #             win_length=hp.data.win_length,
-    #             n_mel_channels=hp.data.mel_channels,
-    #             sampling_rate=hp.data.sampling_rate,
-    #             mel_fmin=hp.data.mel_fmin,
-    #             mel_fmax=hp.data.mel_fmax)      
-    #     model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
-    #     segment_size=hp.data.segment_size // hp.data.hop_length,
-    #     hp=hp)
-    #     predict_key = jax.random.PRNGKey(1234)
-    #     fake_audio = model.apply({'params': generator.params}, ppg_val, pit_val,vec_val, spk_val, ppg_l_val,method=SynthesizerTrn.infer, mutable=False,rngs={'rnorms':predict_key})
-    #     mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))
-    #     mel_real = stft.mel_spectrogram(audio.squeeze(1))
-    #     mel_loss_val = jnp.mean(jnp.abs(mel_fake - mel_real))
+    @partial(jax.pmap, axis_name='num_devices')         
+    def do_validate(generator: TrainState,pit_val:jnp.ndarray,audio:jnp.ndarray):   
+        stft = TacotronSTFT(filter_length=hp.data.filter_length,
+                hop_length=hp.data.hop_length,
+                win_length=hp.data.win_length,
+                n_mel_channels=hp.data.mel_channels,
+                sampling_rate=hp.data.sampling_rate,
+                mel_fmin=hp.data.mel_fmin,
+                mel_fmax=hp.data.mel_fmax)      
+        # model = SynthesizerTrn(spec_channels=hp.data.filter_length // 2 + 1,
+        # segment_size=hp.data.segment_size // hp.data.hop_length,
+        # hp=hp)
+        predict_key = jax.random.PRNGKey(1234)
+        seg_c = hp.data.segment_size//hp.data.hop_length
+        mel_real = stft.mel_spectrogram(audio.squeeze(1))
+        fake_audio = generator.apply_fn({'params': generator.params},mel_real, pit_val,mutable=False,rngs={'rnorms':predict_key})
+        mel_fake = stft.mel_spectrogram(fake_audio.squeeze(1))[:,:,:-1]
+        
+        mel_loss_val = jnp.mean(jnp.abs(mel_fake - mel_real))
 
-    #     #f idx == 0:
-    #     spec_fake = stft.linear_spectrogram(fake_audio.squeeze(1))
-    #     spec_real = stft.linear_spectrogram(audio.squeeze(1))
-    #     audio = audio[0][0]
-    #     fake_audio = fake_audio[0][0]
-    #     spec_fake = spec_fake[0]
-    #     spec_real = spec_real[0]
-    #     return mel_loss_val,audio, fake_audio, spec_fake, spec_real
-    # def validate(generator):
-    #     loader = tqdm.tqdm(valloader, desc='Validation loop')
+        #f idx == 0:
+        spec_fake = stft.linear_spectrogram(fake_audio.squeeze(1))
+        spec_real = stft.linear_spectrogram(audio.squeeze(1))
+        audio = audio[0][0]
+        fake_audio = fake_audio[0][0]
+        spec_fake = spec_fake[0]
+        spec_real = spec_real[0]
+        return mel_loss_val,audio, fake_audio, spec_fake, spec_real
+    def validate(generator):
+        loader = tqdm.tqdm(valloader, desc='Validation loop')
        
      
-    #     mel_loss = 0.0
-    #     for val_ppg, val_ppg_l,val_vec, val_pit, val_spk, val_spec, val_spec_l, val_audio, val_audio_l in loader:
-    #         val_ppg=shard(val_ppg)
-    #         val_ppg_l=shard(val_ppg_l)
-    #         val_vec=shard(val_vec)
-    #         val_pit=shard(val_pit)
-    #         val_spk=shard(val_spk)
-    #         val_audio=shard(val_audio)
-    #         mel_loss_val,val_audio,val_fake_audio,spec_fake,spec_real=do_validate(generator,val_ppg,val_pit,val_vec,val_spk,val_ppg_l,val_audio)
-    #         val_audio,val_fake_audio,spec_fake,spec_real = \
-    #         jax.device_get([val_audio[0],val_fake_audio[0],spec_fake[0],spec_real[0]])
-    #         mel_loss += mel_loss_val.mean()
-    #         writer.log_fig_audio(np.asarray(val_audio), np.asarray(val_fake_audio), \
-    #         np.asarray(spec_fake), np.asarray(spec_real), 0, step)
+        mel_loss = 0.0
+        for val_audio,val_pit in loader:
+            val_audio = jnp.asarray(val_audio)
+            val_pit = jnp.asarray(val_pit)
+            val_pit=shard(val_pit)
+            val_audio=shard(val_audio)
+            mel_loss_val,val_audio,val_fake_audio,spec_fake,spec_real=do_validate(generator,val_pit,val_audio)
+            val_audio,val_fake_audio,spec_fake,spec_real = \
+            jax.device_get([val_audio[0],val_fake_audio[0],spec_fake[0],spec_real[0]])
+            mel_loss += mel_loss_val.mean()
+            writer.log_fig_audio(np.asarray(val_audio), np.asarray(val_fake_audio), \
+            np.asarray(spec_fake), np.asarray(spec_real), 0, step)
 
-    #     mel_loss = mel_loss / len(valloader.dataset)
-    #     mel_loss = np.asarray(mel_loss)
+        mel_loss = mel_loss / len(valloader.dataset)
+        mel_loss = np.asarray(mel_loss)
        
-    #     writer.log_validation(mel_loss, step)
+        writer.log_validation(mel_loss, step)
 
     key = jax.random.PRNGKey(seed=hp.train.seed)
     combine_step_key,key_generator, key_discriminator, key = jax.random.split(key, 4)
@@ -244,7 +257,7 @@ def train(args,chkpt_path, hp):
     )
     logger = logging.getLogger()
     writer = MyWriter(hp, log_dir)
-    #valloader = create_dataloader_eval(hp)
+    valloader = create_dataloader_eval(hp)
     trainloader = create_dataloader_train(hp)
 
     discriminator_state = create_discriminator_state(key_discriminator, Discriminator,hp,trainloader)
@@ -253,7 +266,7 @@ def train(args,chkpt_path, hp):
     options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=hp.train.max_to_keep, create=True)
     orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
     checkpoint_manager = orbax.checkpoint.CheckpointManager(
-        'chkpt/sovits5.0/', orbax_checkpointer, options)
+        'chkpt/nsf_hifigan/', orbax_checkpointer, options)
     if checkpoint_manager.latest_step() is not None:
         target = {'model_g': generator_state, 'model_d': discriminator_state}
         step = checkpoint_manager.latest_step()  # step = 4
@@ -283,12 +296,12 @@ def train(args,chkpt_path, hp):
                 writer.log_training(loss_g, loss_d, loss_m, loss_s, score_loss,step)
                 logger.info("g %.04f m %.04f s %.04f d %.04f  | step %d" % (loss_g, loss_m, loss_s, loss_d, step))
                 
-        # if epoch % hp.log.eval_interval == 0:
-        #     validate(generator_state)
-        # if epoch % hp.log.save_interval == 0:
-        #     generator_state_s = flax.jax_utils.unreplicate(generator_state)
-        #     discriminator_state_s = flax.jax_utils.unreplicate(discriminator_state)
-        #     ckpt = {'model_g': generator_state_s, 'model_d': discriminator_state_s}
-        #     save_args = orbax_utils.save_args_from_target(ckpt)
-        #     checkpoint_manager.save(step, ckpt, save_kwargs={'save_args': save_args})
+        if epoch % hp.log.eval_interval == 0:
+            validate(generator_state)
+        if epoch % hp.log.save_interval == 0:
+            generator_state_s = flax.jax_utils.unreplicate(generator_state)
+            discriminator_state_s = flax.jax_utils.unreplicate(discriminator_state)
+            ckpt = {'model_g': generator_state_s, 'model_d': discriminator_state_s}
+            save_args = orbax_utils.save_args_from_target(ckpt)
+            checkpoint_manager.save(step, ckpt, save_kwargs={'save_args': save_args})
 

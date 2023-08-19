@@ -26,10 +26,10 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         print(f'----------{len(self.items)}----------')
 
     def _filter(self):
-        lengths = []
+        #lengths = []
         items_new = []
-        items_min = int(self.segment_size / self.hop_length * 4)  # 1 S
-        items_max = int(self.segment_size / self.hop_length * 16)  # 4 S
+        #items_min = int(self.segment_size / self.hop_length * 4)  # 1 S
+        items_max = int(self.segment_size / self.hop_length * 4)  # 4 S
         for wavpath, spec, pitch, vec, ppg, spk in self.items:
             if not os.path.isfile(wavpath):
                 continue
@@ -45,10 +45,10 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
                 continue
             temp = np.load(pitch)
             usel = int(temp.shape[0] - 1)  # useful length
-            if (usel < items_min):
+            if (usel < items_max):
                 continue
-            if (usel >= items_max):
-                usel = items_max
+            # if (usel >= items_max):
+            #     usel = items_max
 
             wavpath = self.read_wav(wavpath)
 
@@ -74,10 +74,10 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
             #vec = torch.FloatTensor(vec)
             #ppg = torch.FloatTensor(ppg)
             #spk = torch.FloatTensor(spk)
-            items_new.append([wavpath,  pitch, usel])
-            lengths.append(usel)
+            items_new.append([wavpath,  pitch])
+            #lengths.append(usel)
         self.items = items_new
-        self.lengths = lengths
+        #self.lengths = lengths
     
     def read_wav(self, filename):
         audio, sampling_rate = load_wav_to_torch(filename)
@@ -93,10 +93,11 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         return len(self.items)
 
     def my_getitem(self, idx):
+        items_max = int(self.segment_size * 4)
         item = self.items[idx]
         wav = item[0]
         pit = item[1]
-        use = item[2]
+        #use = item[2]
 
         len_pit = pit.size
         len_min = len_pit
@@ -104,10 +105,10 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
 
         pit = pit[:len_min]
         wav = wav[:, :len_wav]
-        if len_min > self.segment_size:
-            max_frame_start = len_min - self.segment_size - 1
+        if len_min > items_max:
+            max_frame_start = len_min - items_max - 1
             frame_start = random.randint(0, max_frame_start)
-            frame_end = frame_start + self.segment_size
+            frame_end = frame_start + items_max
 
             wav_start = frame_start 
             wav_end = frame_end 

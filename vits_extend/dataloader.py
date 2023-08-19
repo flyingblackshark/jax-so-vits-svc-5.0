@@ -30,6 +30,6 @@ def create_dataloader_eval(hps):
         shuffle=False,
         batch_size=8,
         pin_memory=False,
-        drop_last=True,
-        collate_fn=collate_fn)
+        drop_last=True)
+        #collate_fn=collate_fn)
     return eval_loader
