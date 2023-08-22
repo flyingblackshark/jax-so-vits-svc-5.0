@@ -40,6 +40,7 @@ def create_naive_state(rng, model_cls,hp,trainloader):
     params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
     init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
     (fake_ppg,fake_ppg_l,fake_vec,fake_pit,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
+
     inputs = (fake_ppg,fake_vec,fake_pit)
     variables = model.init(init_rngs, *inputs)
 

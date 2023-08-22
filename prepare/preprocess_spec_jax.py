@@ -17,7 +17,7 @@ def spectrogram_jax(y, n_fft:jnp.int32, hop_size:jnp.int32, win_size:jnp.int32):
 
 def compute_spec(hps, filename, specname):
     audio, sampling_rate = utils.load_wav_to_torch(filename)
-    assert sampling_rate == hps.sampling_rate, f"{sampling_rate} is not {hps.sampling_rate}"
+    #assert sampling_rate == hps.sampling_rate, f"{sampling_rate} is not {hps.sampling_rate}"
     audio_norm = audio / hps.max_wav_value
     audio_norm = jnp.asarray(audio_norm)
     audio_norm = jnp.expand_dims(audio_norm,axis=0)
@@ -27,6 +27,7 @@ def compute_spec(hps, filename, specname):
     win_size = hps.win_length
     spec = spectrogram_jax(
         audio_norm, n_fft, hop_size, win_size)
+    print(spec.shape)
     spec = jnp.squeeze(spec, 0)
     jnp.save(specname,spec)
 

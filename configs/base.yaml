@@ -36,10 +36,9 @@ log:
   pth_dir: 'chkpt'
   log_dir: 'logs'
 model:
-  type: 'Diffusion'
-  n_layers: 20
-  n_chans: 512
-  n_hidden: 256
+  type: 'Naive'
+  n_layers: 3
+  n_chans: 256
   use_pitch_aug: true  
   n_spk: 1 # max number of different speakers
 Gaussian: 
