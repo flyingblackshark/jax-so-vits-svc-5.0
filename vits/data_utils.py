@@ -26,9 +26,9 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         print(f'----------{len(self.items)}----------')
 
     def _filter(self):
-        lengths = []
+        #lengths = []
         items_new = []
-        items_min = int(self.segment_size / self.hop_length * 4)  # 1 S
+        #items_min = int(self.segment_size / self.hop_length * 4)  # 1 S
         items_max = int(self.segment_size / self.hop_length * 16)  # 4 S
         for wavpath, spec, pitch, vec, ppg, spk in self.items:
             if not os.path.isfile(wavpath):
@@ -45,35 +45,14 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
                 continue
             temp = np.load(pitch)
             usel = int(temp.shape[0] - 1)  # useful length
-            if (usel < items_min):
+            if (usel < items_max):
                 continue
-            if (usel >= items_max):
-                usel = items_max
-            wavpath = self.read_wav(wavpath)
-
-            if self.mode == "torch":
-                spec = torch.load(spec)
-            elif self.mode == "jax":
-                spec = np.load(spec)
-            else:
-                raise ValueError("Unknown mode")
-
-            pitch = np.load(pitch)
-            vec = np.load(vec)
-            vec = np.repeat(vec, 2, 0)  # 320 PPG -> 160 * 2
-            ppg = np.load(ppg)
-            ppg = np.repeat(ppg, 2, 0)  # 320 PPG -> 160 * 2
-            spk = np.load(spk)
-
-            spec = torch.FloatTensor(spec)
-            pitch = torch.FloatTensor(pitch)
-            vec = torch.FloatTensor(vec)
-            ppg = torch.FloatTensor(ppg)
-            spk = torch.FloatTensor(spk)
-            items_new.append([wavpath, spec, pitch, vec, ppg, spk, usel])
-            lengths.append(usel)
+            # if (usel >= items_max):
+            #     usel = items_max
+            items_new.append([wavpath, spec, pitch, vec, ppg, spk])
+            #lengths.append(usel)
         self.items = items_new
-        self.lengths = lengths
+        #self.lengths = lengths
 
     def read_wav(self, filename):
         audio, sampling_rate = load_wav_to_torch(filename)
@@ -89,6 +68,7 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         return len(self.items)
 
     def my_getitem(self, idx):
+        items_max = int(self.segment_size / self.hop_length * 16)  # 4 S
         item = self.items[idx]
         # print(item)
         wav = item[0]
@@ -97,28 +77,28 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         vec = item[3]
         ppg = item[4]
         spk = item[5]
-        use = item[6]
+        #use = item[6]
 
-        # wav = self.read_wav(wav)
-        # if self.mode == "torch":
-        #     spe = torch.load(spe)
-        # elif self.mode == "jax":
-        #     spe = np.load(spe)
-        # else:
-        #     raise ValueError("Unknown mode")
+        wav = self.read_wav(wav)
+        if self.mode == "torch":
+            spe = torch.load(spe)
+        elif self.mode == "jax":
+            spe = np.load(spe)
+        else:
+            raise ValueError("Unknown mode")
 
-        # pit = np.load(pit)
-        # vec = np.load(vec)
-        # vec = np.repeat(vec, 2, 0)  # 320 PPG -> 160 * 2
-        # ppg = np.load(ppg)
-        # ppg = np.repeat(ppg, 2, 0)  # 320 PPG -> 160 * 2
-        # spk = np.load(spk)
+        pit = np.load(pit)
+        vec = np.load(vec)
+        vec = np.repeat(vec, 2, 0)  # 320 PPG -> 160 * 2
+        ppg = np.load(ppg)
+        ppg = np.repeat(ppg, 2, 0)  # 320 PPG -> 160 * 2
+        spk = np.load(spk)
 
-        # spe = torch.FloatTensor(spe)
-        # pit = torch.FloatTensor(pit)
-        # vec = torch.FloatTensor(vec)
-        # ppg = torch.FloatTensor(ppg)
-        # spk = torch.FloatTensor(spk)
+        spe = torch.FloatTensor(spe)
+        pit = torch.FloatTensor(pit)
+        vec = torch.FloatTensor(vec)
+        ppg = torch.FloatTensor(ppg)
+        spk = torch.FloatTensor(spk)
 
         len_pit = pit.size()[0]
         len_vec = vec.size()[0] - 2 # for safe
@@ -132,19 +112,19 @@ class TextAudioSpeakerSet(torch.utils.data.Dataset):
         ppg = ppg[:len_min, :]
         spe = spe[:, :len_min]
         wav = wav[:, :len_wav]
-        if len_min > use:
-            max_frame_start = ppg.size(0) - use - 1
-            frame_start = random.randint(0, max_frame_start)
-            frame_end = frame_start + use
+        
+        max_frame_start = ppg.size(0) - items_max - 1
+        frame_start = random.randint(0, max_frame_start)
+        frame_end = frame_start + items_max
 
-            pit = pit[frame_start:frame_end]
-            vec = vec[frame_start:frame_end, :]
-            ppg = ppg[frame_start:frame_end, :]
-            spe = spe[:, frame_start:frame_end]
+        pit = pit[frame_start:frame_end]
+        vec = vec[frame_start:frame_end, :]
+        ppg = ppg[frame_start:frame_end, :]
+        spe = spe[:, frame_start:frame_end]
 
-            wav_start = frame_start * self.hop_length
-            wav_end = frame_end * self.hop_length
-            wav = wav[:, wav_start:wav_end]
+        wav_start = frame_start * self.hop_length
+        wav_end = frame_end * self.hop_length
+        wav = wav[:, wav_start:wav_end]
         # print(spe.shape)
         # print(wav.shape)
         # print(ppg.shape)
