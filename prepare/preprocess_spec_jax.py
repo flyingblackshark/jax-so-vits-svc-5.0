@@ -8,6 +8,8 @@ from omegaconf import OmegaConf
 import jax
 import jax.numpy as jnp
 from functools import partial
+from librosa.filters import mel as librosa_mel_fn
+
 
 @partial(jax.jit, static_argnums=(1,2,3),backend='cpu')
 def spectrogram_jax(y, n_fft:jnp.int32, hop_size:jnp.int32, win_size:jnp.int32):
@@ -27,6 +29,9 @@ def compute_spec(hps, filename, specname):
     win_size = hps.win_length
     spec = spectrogram_jax(
         audio_norm, n_fft, hop_size, win_size)
+    mel_basis = librosa_mel_fn(sr=sampling_rate, n_fft=n_fft, n_mels=128, fmin=50, fmax=16000)
+    spec = jnp.matmul(mel_basis, spec)
+    spec = jnp.log(spec)
     print(spec.shape)
     spec = jnp.squeeze(spec, 0)
     jnp.save(specname,spec)

@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
 from vits import utils
 from omegaconf import OmegaConf
-
+from librosa.filters import mel as librosa_mel_fn
 def spectrogram_torch(y, n_fft, sampling_rate, hop_size, win_size, center=False):
     if torch.min(y) < -1.0:
         print("min value is ", torch.min(y))
@@ -17,8 +17,8 @@ def spectrogram_torch(y, n_fft, sampling_rate, hop_size, win_size, center=False)
     global hann_window
     dtype_device = str(y.dtype) + "_" + str(y.device)
     wnsize_dtype_device = str(win_size) + "_" + dtype_device
-    if wnsize_dtype_device not in hann_window:
-        hann_window[wnsize_dtype_device] = torch.hann_window(win_size).to(
+   
+    hann_window = torch.hann_window(win_size).to(
             dtype=y.dtype, device=y.device
         )
 
@@ -34,7 +34,7 @@ def spectrogram_torch(y, n_fft, sampling_rate, hop_size, win_size, center=False)
         n_fft,
         hop_length=hop_size,
         win_length=win_size,
-        window=hann_window[wnsize_dtype_device],
+        window=hann_window,
         center=center,
         pad_mode="reflect",
         normalized=False,
@@ -42,8 +42,18 @@ def spectrogram_torch(y, n_fft, sampling_rate, hop_size, win_size, center=False)
         return_complex=False,
     )
 
-    spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-6)
+    spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-9)
+    mel_basis = librosa_mel_fn(sr=sampling_rate, n_fft=n_fft, n_mels=128, fmin=50, fmax=16000)
+    mel_basis = torch.from_numpy(mel_basis).float().to(y.device)
+    spec = torch.matmul(mel_basis, spec)
+    spec = dynamic_range_compression_torch(spec, clip_val=1e-5)
     return spec
+
+def dynamic_range_compression_torch(x, C=1, clip_val=1e-5):
+    return torch.log(torch.clamp(x, min=clip_val) * C)
+
+def dynamic_range_decompression_torch(x, C=1):
+    return torch.exp(x) / C
 
 def compute_spec(hps, filename, specname):
     audio, sampling_rate = utils.load_wav_to_torch(filename)

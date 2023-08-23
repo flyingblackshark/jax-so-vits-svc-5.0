@@ -4,7 +4,8 @@ import flax.linen as nn
 from .pcmer import PCmer
 import optax
 import numpy as np
-
+from .gaussian import Gaussian
+from .wavenet import WaveNet
 f0_bin = 256
 f0_max = 1100.0
 f0_min = 50.0
@@ -27,7 +28,7 @@ def f0_to_coarse(f0):
     # ) >= 1, (f0_coarse.max(), f0_coarse.min())
     return f0_coarse
 
-class Unit2MelNaive(nn.Module):
+class Unit2MelPre(nn.Module):
     input_channel:int
     n_spk:int
     use_pitch_aug:bool=False
@@ -52,30 +53,21 @@ class Unit2MelNaive(nn.Module):
                 self.spk_embed = nn.Embed(self.n_spk, self.n_chans)
 
         # conv in stack
-        self.ppg_stack = nn.Sequential([
-            nn.Conv(self.n_chans, [3]),
-            nn.GroupNorm(num_groups=4),
-            nn.leaky_relu,
-            nn.Conv(self.n_chans, [3])])
+        # self.ppg_stack = nn.Sequential([
+        #     nn.Conv(self.n_chans, [3]),
+        #     nn.GroupNorm(num_groups=4),
+        #     nn.leaky_relu,
+        #     nn.Conv(self.n_chans, [3])])
+        self.ppg_stack=nn.Dense(self.n_chans)
         
-        self.vec_stack = nn.Sequential([
-            nn.Conv(self.n_chans, [3]),
-            nn.GroupNorm(num_groups=4),
-            nn.leaky_relu,
-            nn.Conv(self.n_chans, [3])])
-        
-        # transformer
-        self.decoder = PCmer(
-            num_layers=self.n_layers,
-            num_heads=8,
-            dim_model=self.n_chans,
+        # self.vec_stack = nn.Sequential([
+        #     nn.Conv(self.n_chans, [3]),
+        #     nn.GroupNorm(num_groups=4),
+        #     nn.leaky_relu,
+        #     nn.Conv(self.n_chans, [3])])
 
-            residual_dropout=0.1,
-            attention_dropout=0.1)
+        self.vec_stack=nn.Dense(self.n_chans)
 
-        self.norm = nn.LayerNorm()
-        # out
-        self.dense_out = nn.Dense(self.out_dims)
 
 
     def __call__(self, ppg , vec, f0, volume=None, spk_id=None, spk_mix_dict=None, aug_shift=None,
@@ -112,10 +104,7 @@ class Unit2MelNaive(nn.Module):
         #             x = x + self.spk_embed(spk_id - 1)
         # if self.aug_shift_embed is not None and aug_shift is not None:
         #     x = x + self.aug_shift_embed(aug_shift / 5)
-        x = self.decoder(x)
-        x = self.norm(x)
-        x = self.dense_out(x).transpose(0,2,1)
-        # if not infer:
-        #     x = optax.squared_error(x, gt_spec).mean()
+       
+
         return x
 

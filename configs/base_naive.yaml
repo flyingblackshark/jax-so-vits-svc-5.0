@@ -33,16 +33,10 @@ log:
   eval_interval: 100
   save_interval: 100
   num_audio: 6
-  max_to_keep : 10
   pth_dir: 'chkpt'
   log_dir: 'logs'
-model_diff:
-  n_layers: 20
-  n_chans: 512
-  n_hidden: 256
-  use_pitch_aug: true  
-  n_spk: 1 # max number of different speakers
-model_naive:
+model:
+  type: 'Naive'
   n_layers: 3
   n_chans: 256
   use_pitch_aug: true  
