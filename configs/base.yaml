@@ -48,8 +48,8 @@ data:
 #############################
 log:
   info_interval: 100
-  eval_interval: 3
-  save_interval: 3
+  eval_interval: 300
+  save_interval: 300
   num_audio: 6
   max_to_keep : 10
   pth_dir: 'chkpt'
