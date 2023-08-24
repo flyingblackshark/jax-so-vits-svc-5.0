@@ -34,16 +34,18 @@ def create_naive_state(rng, model_cls,hp,trainloader):
                     use_speaker_encoder=hp.model_naive.use_speaker_encoder,
                     speaker_encoder_out_channels=hp.data.speaker_encoder_out_channels)
     
-    exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=hp.train.total_steps,decay_rate=hp.train.lr_decay)
-    tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
+    #exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=hp.train.total_steps,decay_rate=hp.train.lr_decay)
+    tx = optax.lion(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1])
         
 
     
     params_key,r_key,dropout_key,rng = jax.random.split(rng,4)
     init_rngs = {'params': params_key, 'dropout': dropout_key,'rnorms':r_key}
-    (fake_ppg,fake_ppg_l,fake_vec,fake_pit,fake_spk,fake_spec,fake_spec_l,fake_audio,wav_l) = next(iter(trainloader))
-
-    inputs = (fake_ppg,fake_vec,fake_pit)
+    data = next(iter(trainloader))
+    i1 = jnp.asarray(data['units'])
+    i2 = jnp.asarray(data['f0'])
+    i3 = jnp.asarray(data['volume'])
+    inputs = (i1,i2,i3)
     variables = model.init(init_rngs, *inputs)
 
     state = TrainState.create(apply_fn=model.apply, tx=tx, params=variables['params'])
@@ -57,12 +59,12 @@ def create_wavenet_state(rng, model_cls,hp,trainloader):
                         n_chans=hp.model_diff.n_chans,
                         n_hidden=hp.model_diff.n_hidden)
 
-    input_shape = (1, 128, 250)
+    input_shape = (1, 128, 172)
     input_shapes = (input_shape, input_shape[0], input_shape)
     inputs = list(map(lambda shape: jnp.empty(shape), input_shapes))
 
-    exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=hp.train.total_steps, decay_rate=hp.train.lr_decay)
-    tx = optax.lion(learning_rate=exponential_decay_scheduler, b1=hp.train.betas[0],b2=hp.train.betas[1])
+    #exponential_decay_scheduler = optax.exponential_decay(init_value=hp.train.learning_rate, transition_steps=hp.train.total_steps, decay_rate=hp.train.lr_decay)
+    tx = optax.lion(learning_rate=hp.train.learning_rate, b1=hp.train.betas[0],b2=hp.train.betas[1])
 
     variables = model.init(rng, *inputs)
 
@@ -74,19 +76,14 @@ def train(args,chkpt_path, hp):
     gaussian_config = hp['Gaussian']
     diff = Gaussian(**gaussian_config)
     @partial(jax.pmap, axis_name='num_devices')
-    def combine_step(naive_state: TrainState,wavenet_state: TrainState,ppg : jnp.ndarray  , pit : jnp.ndarray, vec:jnp.ndarray,spec : jnp.ndarray, spk : jnp.ndarray, ppg_l : jnp.ndarray ,spec_l:jnp.ndarray ,audio_e:jnp.ndarray,rng_e:PRNGKey):
+    def combine_step(naive_state: TrainState,wavenet_state: TrainState, ppg : jnp.ndarray , pit : jnp.ndarray,spec : jnp.ndarray, vol:jnp.ndarray,rng_e:PRNGKey):
         ppg = jnp.asarray(ppg)
         pit = jnp.asarray(pit)
-        vec = jnp.asarray(vec)
         spec = jnp.asarray(spec)
-        spk = jnp.asarray(spk)
-        ppg_l = jnp.asarray(ppg_l)
-        spec_l = jnp.asarray(spec_l)
-        audio_e = jnp.asarray(audio_e)
         
         
         def naive_loss_fn(params):
-            fake_mel = naive_state.apply_fn({'params': params},ppg=ppg,f0=pit,vec=vec, gt_spec=spec,infer=False,rngs={'rnorms':rng_e})
+            fake_mel = naive_state.apply_fn({'params': params},ppg=ppg,f0=pit,volume=vol,gt_spec=spec,infer=False,rngs={'rnorms':rng_e})
             loss_naive = optax.squared_error(fake_mel, spec).mean()
             return loss_naive,fake_mel
 
@@ -97,8 +94,8 @@ def train(args,chkpt_path, hp):
         loss_naive = jax.lax.pmean(loss_naive, axis_name='num_devices')
 
         new_naive_state = naive_state.apply_gradients(grads=grads_naive)
-
-
+        fake_mel = fake_mel.transpose(0,2,1)
+        spec = spec.transpose(0,2,1)
         def diff_loss_fn(params):
             loss_diff = diff(rng_e, wavenet_state, params, spec, fake_mel)
             return loss_diff
@@ -114,12 +111,15 @@ def train(args,chkpt_path, hp):
         new_wavenet_state = wavenet_state.apply_gradients(grads=grads_diff)
         return new_naive_state,new_wavenet_state,loss_naive,loss_diff
     @partial(jax.pmap, axis_name='num_devices')         
-    def generate_hidden(naive_state: TrainState,ppg_val:jnp.ndarray,pit_val:jnp.ndarray,vec_val:jnp.ndarray,spk_val:jnp.ndarray,ppg_l_val:jnp.ndarray,audio:jnp.ndarray,spec_val:jnp.ndarray):
+    def generate_hidden(naive_state: TrainState,ppg_val:jnp.ndarray,pit_val:jnp.ndarray,vol_val:jnp.ndarray):
         predict_key = jax.random.PRNGKey(1234)
-        hidden = naive_state.apply_fn({'params': naive_state.params},ppg=ppg_val, f0=pit_val,vec=vec_val,infer=True, mutable=False,rngs={'rnorms':predict_key})
+        hidden = naive_state.apply_fn({'params': naive_state.params},ppg=ppg_val, f0=pit_val,volume=vol_val,infer=True, mutable=False,rngs={'rnorms':predict_key})
         return hidden
     def do_validate(wavenet_state:TrainState,hidden:jnp.ndarray,spec_val:jnp.ndarray):   
         hidden=hidden.squeeze(1)
+        hidden=hidden.transpose(0,2,1)
+        #spec_val=spec_val.squeeze(1)
+        spec_val=spec_val.transpose(0,2,1)
         mel_fake = diff.sample(key, wavenet_state,hidden )
         mel_loss_val = jnp.mean(jnp.abs(mel_fake - spec_val))
         spec_fake = mel_fake[0]
@@ -130,19 +130,13 @@ def train(args,chkpt_path, hp):
        
      
         mel_loss = 0.0
-        for val_ppg, val_ppg_l,val_vec, val_pit, val_spk, val_spec, val_spec_l, val_audio, val_audio_l in loader:
-            val_ppg=shard(val_ppg)
-            val_ppg_l=shard(val_ppg_l)
-            val_vec=shard(val_vec)
-            val_pit=shard(val_pit)
-            val_spk=shard(val_spk)
-            val_audio=shard(val_audio)
-            shared_val_spec=shard(val_spec)
-            hidden = generate_hidden(naive_state,val_ppg,val_pit,val_vec,val_spk,val_ppg_l,val_audio,shared_val_spec)
+        for data in loader:
+            val_ppg = shard(jnp.asarray(data['units']))
+            val_pit = shard(jnp.asarray(data['f0']))
+            val_vol = shard(jnp.asarray(data['volume']))
+            val_spec = jnp.asarray(data['mel'])
+            hidden = generate_hidden(naive_state,val_ppg,val_pit,val_vol)
             mel_loss_val,spec_fake,spec_real=do_validate(wavenet_state,hidden,val_spec)
-            # print(spec_fake.shape)
-            # print(spec_real.shape)
-            #spec_fake,spec_real = jax.device_get([spec_fake[0],spec_real[0]])
             mel_loss += mel_loss_val.mean()
             writer.log_fig_audio(np.asarray(spec_fake), np.asarray(spec_real), 0, step)
 
@@ -172,8 +166,10 @@ def train(args,chkpt_path, hp):
     )
     logger = logging.getLogger()
     writer = MyWriter(hp, log_dir)
-    valloader = create_dataloader_eval(hp)
-    trainloader = create_dataloader_train(hp)
+    from diffusion.data_loaders import get_data_loaders
+    trainloader, valloader = get_data_loaders(hp, whole_audio=False)
+    # valloader = create_dataloader_eval(hp)
+    # trainloader = create_dataloader_train(hp)
 
     naive_state = create_naive_state(key_discriminator,Unit2MelNaive ,hp,trainloader)
     wavenet_state = create_wavenet_state(key_generator, WaveNet,hp,trainloader)
@@ -195,20 +191,15 @@ def train(args,chkpt_path, hp):
     for epoch in range(init_epoch, hp.train.epochs):
 
         loader = tqdm.tqdm(trainloader, desc='Loading train data')
-        for ppg, ppg_l,vec, pit, spk, spec, spec_l, audio, audio_l in loader:
+        for data in loader:
             step_key,combine_step_key=jax.random.split(combine_step_key)
             step_key = shard_prng_key(step_key)
-            ppg = shard(ppg)
-            ppg_l = shard(ppg_l)
-            vec = shard(vec)
-            pit = shard(pit)
-            spk_n = shard(spk)
-            spec = shard(spec)
-            spec_l = shard(spec_l)
-            audio = shard(audio)
-            audio_l = shard(audio_l)
+            ppg = shard(jnp.asarray(data['units']))
+            pit = shard(jnp.asarray(data['f0']))
+            spec = shard(jnp.asarray(data['mel']))
+            vol = shard(jnp.asarray(data['volume']))
             naive_state,wavenet_state,loss_naive,loss_diff=\
-            combine_step(naive_state,wavenet_state,ppg=ppg,pit=pit,vec=vec, spk=spk_n, spec=spec,ppg_l=ppg_l,spec_l=spec_l,audio_e=audio,rng_e=step_key)
+            combine_step(naive_state,wavenet_state,ppg=ppg,pit=pit, spec=spec,vol=vol,rng_e=step_key)
 
             step += 1
 

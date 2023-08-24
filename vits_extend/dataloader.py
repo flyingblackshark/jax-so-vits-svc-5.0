@@ -15,7 +15,7 @@ def create_dataloader_train(hps):
         num_workers=0,
         shuffle=True,
         pin_memory=True,
-        collate_fn=collate_fn,
+        #collate_fn=collate_fn,
         persistent_workers=False,
         drop_last=True)
     return train_loader
@@ -28,8 +28,8 @@ def create_dataloader_eval(hps):
         eval_dataset,
         num_workers=0,
         shuffle=False,
-        batch_size=8,
+        batch_size=1,
         pin_memory=False,
-        drop_last=True,
-        collate_fn=collate_fn)
+        drop_last=True)
+        #collate_fn=collate_fn)
     return eval_loader

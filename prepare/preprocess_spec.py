@@ -54,20 +54,23 @@ def dynamic_range_compression_torch(x, C=1, clip_val=1e-5):
 
 def dynamic_range_decompression_torch(x, C=1):
     return torch.exp(x) / C
-
+from vocoder import Vocoder
+mel_extractor = Vocoder("nsf-hifigan", "pretrain/nsf_hifigan/model", device="cpu")
 def compute_spec(hps, filename, specname):
     audio, sampling_rate = utils.load_wav_to_torch(filename)
-    assert sampling_rate == hps.sampling_rate, f"{sampling_rate} is not {hps.sampling_rate}"
-    audio_norm = audio / hps.max_wav_value
-    audio_norm = audio_norm.unsqueeze(0)
-    n_fft = hps.filter_length
-    sampling_rate = hps.sampling_rate
-    hop_size = hps.hop_length
-    win_size = hps.win_length
-    spec = spectrogram_torch(
-        audio_norm, n_fft, sampling_rate, hop_size, win_size, center=False)
-    spec = torch.squeeze(spec, 0)
-    torch.save(spec, specname)
+    # assert sampling_rate == hps.sampling_rate, f"{sampling_rate} is not {hps.sampling_rate}"
+    # audio_norm = audio / hps.max_wav_value
+    audio = audio.unsqueeze(0)
+    # n_fft = hps.filter_length
+    # sampling_rate = hps.sampling_rate
+    # hop_size = hps.hop_length
+    # win_size = hps.win_length
+    # spec = spectrogram_torch(
+    #     audio_norm, n_fft, sampling_rate, hop_size, win_size, center=False)
+    # spec = torch.squeeze(spec, 0)
+    mel_t = mel_extractor.extract(audio, 44100)
+    mel = mel_t.squeeze().transpose(1,0)
+    torch.save(mel, specname)
 
 
 def process_file(file):

@@ -38,7 +38,7 @@ class Unit2MelNaive(nn.Module):
     use_speaker_encoder:bool=False
     speaker_encoder_out_channels:int=256
     def setup(self):
-        self.f0_embed = nn.Embed(256, self.n_chans)#nn.Dense( self.n_chans)
+        self.f0_embed = nn.Dense( self.n_chans)
         self.volume_embed = nn.Dense(self.n_chans)
         if self.use_pitch_aug:
             self.aug_shift_embed = nn.Dense(self.n_chans, use_bias=False)
@@ -58,11 +58,11 @@ class Unit2MelNaive(nn.Module):
             nn.leaky_relu,
             nn.Conv(self.n_chans, [3])])
         
-        self.vec_stack = nn.Sequential([
-            nn.Conv(self.n_chans, [3]),
-            nn.GroupNorm(num_groups=4),
-            nn.leaky_relu,
-            nn.Conv(self.n_chans, [3])])
+        # self.vec_stack = nn.Sequential([
+        #     nn.Conv(self.n_chans, [3]),
+        #     nn.GroupNorm(num_groups=4),
+        #     nn.leaky_relu,
+        #     nn.Conv(self.n_chans, [3])])
         
         # transformer
         self.decoder = PCmer(
@@ -78,7 +78,7 @@ class Unit2MelNaive(nn.Module):
         self.dense_out = nn.Dense(self.out_dims)
 
 
-    def __call__(self, ppg , vec, f0, volume=None, spk_id=None, spk_mix_dict=None, aug_shift=None,
+    def __call__(self, ppg ,f0, volume, spk_id=None, spk_mix_dict=None, aug_shift=None,
                 gt_spec=None, infer=True, infer_speedup=10, method='ddim', k_step=None, use_tqdm=True,
                 spk_emb=None, spk_emb_dict=None):
 
@@ -89,8 +89,8 @@ class Unit2MelNaive(nn.Module):
             dict of B x n_frames x feat
         '''
         x = self.ppg_stack(ppg).transpose(0,2,1)
-        v = self.vec_stack(vec).transpose(0,2,1)
-        x = x + v + self.f0_embed(f0_to_coarse(f0)).transpose(0,2,1) #+ self.volume_embed(volume)
+        #v = self.vec_stack(vec).transpose(0,2,1)
+        x = x + self.f0_embed(jnp.log(1+ f0 / 700)).transpose(0,2,1) + self.volume_embed(volume).transpose(0,2,1)
         x = x.transpose(0,2,1)
         # if self.use_speaker_encoder:
         #     if spk_mix_dict is not None:
@@ -114,7 +114,7 @@ class Unit2MelNaive(nn.Module):
         #     x = x + self.aug_shift_embed(aug_shift / 5)
         x = self.decoder(x)
         x = self.norm(x)
-        x = self.dense_out(x).transpose(0,2,1)
+        x = self.dense_out(x)
         # if not infer:
         #     x = optax.squared_error(x, gt_spec).mean()
         return x

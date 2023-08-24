@@ -264,7 +264,7 @@ class Gaussian:
         pred_image = model_mean + jnp.exp(0.5 * model_log_variance) * noise
 
         return pred_image, x_start
-
+    
     def p_sample_loop(self, key, state, self_condition=None, shape=None):
         key, normal_key = jax.random.split(key, 2)
         img = self.generate_nosie(normal_key, shape)
@@ -297,7 +297,38 @@ class Gaussian:
         ret = img
 
         return ret
+    def p_sample_loop_predict(self, key, state, self_condition=None, shape=None):
+            key, normal_key = jax.random.split(key, 2)
+            img = self.generate_nosie(normal_key, shape)
+            #img = shard(img)
 
+            x_self_cond = self_condition
+            has_condition = False
+            if x_self_cond is not None:
+                #x_self_cond = shard(x_self_cond)
+                has_condition = True
+
+            x_start = jnp.zeros_like(img)
+            for t in tqdm(reversed(range(0, self.num_timesteps)), total=self.num_timesteps):
+                key, normal_key = jax.random.split(key, 2)
+                #normal_key = shard_prng_key(normal_key)
+                batch_times = jnp.full((shape[0],), t)
+                #batch_times = shard(batch_times)
+
+                if has_condition:
+                    pass
+                elif self.self_condition:
+                    x_self_cond = x_start
+                else:
+                    x_self_cond = None
+
+                img, x_start = self.pmap_p_sample(normal_key, img, batch_times, x_self_cond, state)
+
+            img = jnp.reshape(img,(-1, *shape))
+
+            ret = img
+
+            return ret
     def ddim_sample(self, key, state, self_condition=None, shape=None):
         b, *_ = shape
         key, key_image = jax.random.split(key, 2)
@@ -367,7 +398,22 @@ class Gaussian:
         samples = self.denormalize(samples)
 
         return samples
+    def pred_sample(self, key, state, self_condition=None,shape=None):
+        # if self_condition is not None:
+        #     batch_size = self_condition.shape[0]
 
+        if self.num_timesteps > self.sampling_timesteps:
+            samples = self.ddim_sample(key, state, self_condition, shape)
+        else:
+            samples = self.p_sample_loop_predict(key, state, self_condition, shape)
+
+        # output image will be denormalized by mean(default as 0) and std(default as 1) because input image was
+        # normalized if mean=0 and std=1 img=denormalize(image)
+        samples = samples / self.scale_factor
+        samples = self.denormalize(samples)
+
+        return samples
+    
     def q_sample(self, x_start, t, noise):
         return (
                 extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start +

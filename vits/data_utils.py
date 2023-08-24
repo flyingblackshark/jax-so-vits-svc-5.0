@@ -3,7 +3,7 @@ import numpy as np
 import random
 import torch
 import torch.utils.data
-
+import torch.nn.functional as F
 
 from vits.utils import load_wav_to_torch
 

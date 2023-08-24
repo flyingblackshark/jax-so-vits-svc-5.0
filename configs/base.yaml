@@ -3,7 +3,7 @@ train:
   model: "sovits"
   seed: 1234
   epochs: 10000
-  learning_rate: 5e-5
+  learning_rate: 1e-4
   betas: [0.9, 0.99]
   lr_decay: 0.999875
   total_steps: 30 # base on dataset size
@@ -27,11 +27,29 @@ data:
   mel_channels: 100
   mel_fmin: 50.0
   mel_fmax: 16000.0
+  f0_extractor: 'crepe' # 'parselmouth', 'dio', 'harvest', 'crepe', 'rmvpe' or 'fcpe'
+  f0_min: 65 # about C2
+  f0_max: 800 # about G5
+
+  block_size: 512 # Equal to hop_length
+  duration: 2 # Audio duration during training, must be less than the duration of the shortest audio clip
+  encoder: 'contentvec768l12' # 'hubertsoft', 'hubertbase', 'hubertbase768', 'contentvec', 'contentvec768' or 'contentvec768l12' or 'cnhubertsoftfish'
+  cnhubertsoft_gate: 10 # only use with cnhubertsoftfish
+  encoder_sample_rate: 16000
+  encoder_hop_size: 320
+  encoder_out_channels: 768 # 256 if using 'hubertsoft'
+  encoder_ckpt: pretrain/contentvec/checkpoint_best_legacy_500.pt
+  units_forced_mode: 'nearest' # Recommended 'nearest',experiment 'rfa512to441' and 'rfa441to512' ; 'left'  only use for compatible with history code
+  volume_noise: 0 # if not 0 ,add noise for volume in train ;;;;EXPERIMENTAL FUNCTION, NOT RECOMMENDED FOR USE;;;;
+  train_path: data/train # Create a folder named "audio" under this path and put the audio clip in it
+  valid_path: data/val # Create a folder named "audio" under this path and put the audio clip in it
+  extensions: # List of extension included in the data collection
+    - wav
 #############################
 log:
   info_interval: 100
-  eval_interval: 100
-  save_interval: 100
+  eval_interval: 3
+  save_interval: 3
   num_audio: 6
   max_to_keep : 10
   pth_dir: 'chkpt'
@@ -47,8 +65,11 @@ model_naive:
   n_chans: 256
   use_pitch_aug: true  
   n_spk: 1 # max number of different speakers
+model:
+  use_pitch_aug: false  
+  n_spk: 1 # max number of different speakers
 Gaussian: 
-  sample_shape: [128,250]
+  sample_shape: [128,172]
   loss: 'l1'
   timesteps: 1000
   sampling_timesteps: 1000
