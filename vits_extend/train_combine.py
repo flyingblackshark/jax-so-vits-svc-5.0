@@ -116,9 +116,6 @@ def train(args,chkpt_path, hp):
         hidden = naive_state.apply_fn({'params': naive_state.params},ppg=ppg_val, f0=pit_val,volume=vol_val,infer=True, mutable=False,rngs={'rnorms':predict_key})
         return hidden
     def do_validate(wavenet_state:TrainState,hidden:jnp.ndarray,spec_val:jnp.ndarray):   
-        hidden=hidden.squeeze(1)
-        hidden=hidden.transpose(0,2,1)
-        #spec_val=spec_val.squeeze(1)
         spec_val=spec_val.transpose(0,2,1)
         mel_fake = diff.sample(key, wavenet_state,hidden )
         mel_loss_val = jnp.mean(jnp.abs(mel_fake - spec_val))
@@ -136,9 +133,11 @@ def train(args,chkpt_path, hp):
             val_vol = shard(jnp.asarray(data['volume']))
             val_spec = jnp.asarray(data['mel'])
             hidden = generate_hidden(naive_state,val_ppg,val_pit,val_vol)
+            hidden=hidden.squeeze(1)
+            hidden=hidden.transpose(0,2,1)
             mel_loss_val,spec_fake,spec_real=do_validate(wavenet_state,hidden,val_spec)
             mel_loss += mel_loss_val.mean()
-            writer.log_fig_audio(np.asarray(spec_fake), np.asarray(spec_real), 0, step)
+            writer.log_fig_audio(np.asarray(spec_fake), np.asarray(spec_real),np.asarray(hidden[0]), 0, step)
 
         mel_loss = mel_loss / len(valloader.dataset)
         mel_loss = np.asarray(mel_loss)

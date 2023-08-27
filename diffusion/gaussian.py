@@ -156,7 +156,15 @@ class Gaussian:
         self.pmap_q_sample = jax.pmap(self.q_sample)
         self.pmap_model_predictions = jax.pmap(self.model_predictions)
         self.pmap_p_sample = jax.pmap(self.p_sample)
+        self.spec_max = 2
+        self.spec_min = -12
 
+    def norm_spec(self, x):
+        return (x - self.spec_min) / (self.spec_max - self.spec_min) * 2 - 1
+
+    def denorm_spec(self, x):
+        return (x + 1) / 2 * (self.spec_max - self.spec_min) + self.spec_min
+    
     def normalize(self, x):
         return (x - self.mean) / self.std
 
@@ -395,7 +403,8 @@ class Gaussian:
         # output image will be denormalized by mean(default as 0) and std(default as 1) because input image was
         # normalized if mean=0 and std=1 img=denormalize(image)
         samples = samples / self.scale_factor
-        samples = self.denormalize(samples)
+        #samples = self.denormalize(samples)
+        samples = self.denorm_spec(samples)
 
         return samples
     def pred_sample(self, key, state, self_condition=None,shape=None):
@@ -410,7 +419,8 @@ class Gaussian:
         # output image will be denormalized by mean(default as 0) and std(default as 1) because input image was
         # normalized if mean=0 and std=1 img=denormalize(image)
         samples = samples / self.scale_factor
-        samples = self.denormalize(samples)
+        #samples = self.denormalize(samples)
+        samples = self.denorm_spec(samples)
 
         return samples
     
@@ -451,15 +461,16 @@ class Gaussian:
         else:
             target = None
 
-        p_loss = self.loss(target, model_output)
+        p_loss = self.loss(target, model_output).mean()
 
-        p_loss = (p_loss * extract(self.loss_weight, t, p_loss.shape)).mean()
+        #p_loss = (p_loss * extract(self.loss_weight, t, p_loss.shape)).mean()
         return p_loss
 
     def __call__(self, key, state, params, img , self_cond):
         # input image will be normalized by mean(default as 0) and std(default as 1)
         # if mean=0 and std=1 img=normalize(image)
-        img = self.normalize(img)
+        #img = self.normalize(img)
+        img = self.norm_spec(img)
 
         key_times, key_noise = jax.random.split(key, 2)
         b, *_ = img.shape
